@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { CartItem, Product, Sale, SaleItem, QueuedOperation, GasSaleType } from '../types'
 import { supabase } from '../lib/supabase'
+import { NotificationTriggers } from '../lib/notificationTriggers'
 
 interface POSStore {
   // State
@@ -341,6 +342,18 @@ export const useStore = create<POSStore>()(
             isLoading: false
           }))
 
+          // Trigger notifications
+          try {
+            // Check low stock after sale
+            await NotificationTriggers.checkLowStock()
+            
+            // Check daily target
+            const todayTotal = await NotificationTriggers.getTodaySalesTotal()
+            await NotificationTriggers.checkDailyTarget(todayTotal)
+          } catch (notifError) {
+            console.error('Notification error:', notifError)
+          }
+
           return completedSale
         } catch (err) {
           set({ error: (err as Error).message, isLoading: false })
@@ -530,6 +543,21 @@ export const useStore = create<POSStore>()(
         // Refresh data after processing queue
         await get().fetchProducts()
         await get().fetchSales()
+
+        // Notify sync complete if any operations were processed
+        const processedCount = offlineQueue.length - get().offlineQueue.length
+        if (processedCount > 0) {
+          try {
+            // Get current user from authStore (if available)
+            const authState = JSON.parse(localStorage.getItem('auth-storage') || '{}')
+            const userId = authState?.state?.user?.id
+            if (userId) {
+              await NotificationTriggers.notifySyncComplete(userId, processedCount)
+            }
+          } catch (notifError) {
+            console.error('Sync notification error:', notifError)
+          }
+        }
       }
     }),
     {

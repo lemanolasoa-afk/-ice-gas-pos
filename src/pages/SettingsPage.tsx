@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import {
   Store, Trash2, Download, Info, Package, BarChart3, Users,
   Tag, PackagePlus, ChevronRight, TrendingUp, ShoppingCart,
-  LogOut, History, DollarSign, UserCog, Smartphone, AlertCircle
+  LogOut, History, DollarSign, UserCog, Smartphone, AlertCircle, Bell
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
 import { useToast } from '../components/Toast'
 import { hasPermission, Permission } from '../lib/permissions'
+import { NotificationSettings } from '../components/NotificationSettings'
 
 export function SettingsPage() {
   const navigate = useNavigate()
@@ -217,6 +218,15 @@ export function SettingsPage() {
             )}
           </div>
         )}
+
+        {/* Notification Settings */}
+        <div className="bg-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center gap-2 text-gray-500 mb-3">
+            <Bell size={18} />
+            <span className="font-medium">การแจ้งเตือน</span>
+          </div>
+          <NotificationSettings />
+        </div>
 
         {/* PWA Installation Status */}
         {!isInstalled && (
