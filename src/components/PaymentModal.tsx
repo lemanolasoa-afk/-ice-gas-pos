@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Check, Banknote, Loader2, Users, Star, Search, Wallet, FileText, UserPlus, Phone, Tag } from 'lucide-react'
 import { useStore } from '../store/useStore'
-import { validatePayment, addQuickAmount } from '../lib/payment'
+import { validatePayment } from '../lib/payment'
 import { supabase } from '../lib/supabase'
 import { Customer, Discount } from '../types'
 import { useToast } from './Toast'
@@ -22,7 +22,8 @@ const paymentMethods = [
   { id: 'credit' as PaymentMethod, name: 'วางบิล', icon: FileText },
 ]
 
-const quickAmounts = [20, 50, 100, 500, 1000]
+// Common bill denominations in Thailand
+const commonBills = [20, 50, 100, 500, 1000]
 
 export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
@@ -148,15 +149,37 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
     setSelectedDiscount(null)
   }
 
-  const handleQuickAmount = (amount: number) => {
-    setPayment((prev) => {
-      const current = parseInt(prev) || 0
-      return addQuickAmount(current, amount).toString()
-    })
+  // Set payment to specific amount (not add)
+  const handleSetAmount = (amount: number) => {
+    setPayment(amount.toString())
   }
 
   const handleExact = () => {
     setPayment(total.toString())
+  }
+
+  // Calculate suggested amounts based on total (round up to nearest common bill)
+  const getSuggestedAmounts = () => {
+    const suggestions: number[] = []
+    // Add exact amount option
+    suggestions.push(total)
+    // Add common bills that are >= total
+    for (const bill of commonBills) {
+      if (bill >= total && !suggestions.includes(bill)) {
+        suggestions.push(bill)
+      }
+    }
+    // Add rounded amounts (nearest 100, 500, 1000)
+    const roundTo100 = Math.ceil(total / 100) * 100
+    const roundTo500 = Math.ceil(total / 500) * 500
+    const roundTo1000 = Math.ceil(total / 1000) * 1000
+    
+    if (roundTo100 > total && !suggestions.includes(roundTo100)) suggestions.push(roundTo100)
+    if (roundTo500 > total && !suggestions.includes(roundTo500)) suggestions.push(roundTo500)
+    if (roundTo1000 > total && !suggestions.includes(roundTo1000)) suggestions.push(roundTo1000)
+    
+    // Sort and return unique values, limit to 6
+    return [...new Set(suggestions)].sort((a, b) => a - b).slice(0, 6)
   }
 
   const handleSelectCustomer = (customer: Customer) => {
@@ -398,23 +421,24 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
               </div>
             </div>
 
-            {/* Quick Amounts */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              <button
-                onClick={handleExact}
-                className="px-4 py-2 bg-gray-800 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"
-              >
-                พอดี
-              </button>
-              {quickAmounts.map((amount) => (
-                <button
-                  key={amount}
-                  onClick={() => handleQuickAmount(amount)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-                >
-                  +{amount}
-                </button>
-              ))}
+            {/* Suggested Amounts */}
+            <div className="mb-4">
+              <label className="text-sm text-gray-600 mb-2 block">รับเงินจำนวน</label>
+              <div className="flex flex-wrap gap-2">
+                {getSuggestedAmounts().map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => handleSetAmount(amount)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      amount === total
+                        ? 'bg-gray-800 text-white hover:bg-gray-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {amount === total ? 'พอดี' : `฿${amount.toLocaleString()}`}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Change Display */}

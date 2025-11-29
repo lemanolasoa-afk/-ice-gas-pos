@@ -1,31 +1,34 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Droplets, Flame, Snowflake, Check, RefreshCw, Banknote, X } from 'lucide-react'
+import { Droplets, Flame, Snowflake, Check, RefreshCw, Banknote, X, Package } from 'lucide-react'
 import { Product, GasSaleType } from '../types'
 import { useStore } from '../store/useStore'
 
 interface Props {
   product: Product
   index?: number
-  category?: 'ice' | 'gas' | 'water'
+  category?: 'ice' | 'gas' | 'water' | 'new_gas'
 }
 
 const categoryIcons = {
   ice: Snowflake,
   gas: Flame,
   water: Droplets,
+  new_gas: Package,
 }
 
 const categoryColors = {
   ice: 'bg-blue-100 text-blue-600',
   gas: 'bg-orange-100 text-orange-600',
   water: 'bg-cyan-100 text-cyan-600',
+  new_gas: 'bg-green-100 text-green-600',
 }
 
 const categoryAccent = {
   ice: 'border-blue-200 hover:border-blue-400 hover:shadow-md',
   gas: 'border-orange-200 hover:border-orange-400 hover:shadow-md',
   water: 'border-cyan-200 hover:border-cyan-400 hover:shadow-md',
+  new_gas: 'border-green-200 hover:border-green-400 hover:shadow-md',
 }
 
 // Gas Modal Component - rendered via Portal
@@ -144,8 +147,16 @@ export function ProductCard({ product, index = 0 }: Props) {
 
   const handleClick = () => {
     if (isOutOfStock) return
+    // แก๊สปกติ (มีแลกถัง/มัดจำ) ต้องเลือกรูปแบบ
     if (isGas) {
       setShowGasModal(true)
+      return
+    }
+    // แก๊สใหม่ขายขาดเลย ไม่ต้องเลือก
+    if (product.category === 'new_gas') {
+      setIsAdding(true)
+      addToCart(product, 'outright')
+      setTimeout(() => setIsAdding(false), 300)
       return
     }
     setIsAdding(true)

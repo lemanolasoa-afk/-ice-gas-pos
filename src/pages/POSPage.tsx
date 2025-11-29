@@ -5,9 +5,6 @@ import {
   Barcode,
   Search,
   X,
-  Snowflake,
-  Flame,
-  Droplets,
   LayoutGrid,
   List,
   Plus,
@@ -22,35 +19,27 @@ import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { useToast } from '../components/Toast'
-import { Product, GasSaleType } from '../types'
-
-const categoryConfig = {
-  ice: { name: 'น้ำแข็ง', icon: Snowflake, color: 'bg-blue-500', lightColor: 'bg-blue-50', textColor: 'text-blue-600' },
-  gas: { name: 'แก๊ส', icon: Flame, color: 'bg-orange-500', lightColor: 'bg-orange-50', textColor: 'text-orange-600' },
-  water: { name: 'น้ำดื่ม', icon: Droplets, color: 'bg-cyan-500', lightColor: 'bg-cyan-50', textColor: 'text-cyan-600' },
-}
-
-type CategoryKey = keyof typeof categoryConfig
+import { useCategories } from '../hooks/useCategories'
+import { Product, GasSaleType, Category } from '../types'
 type ViewMode = 'grid' | 'list'
 
 // Product List Item - Clean & Clear
-function ProductListItem({ product, category }: { product: Product; category: CategoryKey }) {
+function ProductListItem({ product, categoryConfig }: { product: Product; categoryConfig: Category }) {
   const addToCart = useStore((s) => s.addToCart)
   const cart = useStore((s) => s.cart)
   const [isAdding, setIsAdding] = useState(false)
   const [showGasModal, setShowGasModal] = useState(false)
 
-  const config = categoryConfig[category]
-  const Icon = config.icon
+  const config = categoryConfig
   const cartItem = cart.find((item) => item.product.id === product.id)
   const quantity = cartItem?.quantity || 0
   const isOutOfStock = product.stock <= 0
-  const isGas = product.category === 'gas'
+  const hasDeposit = config.has_deposit
   const depositAmount = product.deposit_amount || 0
 
   const handleAdd = () => {
     if (isOutOfStock) return
-    if (isGas) {
+    if (hasDeposit) {
       setShowGasModal(true)
       return
     }
@@ -71,8 +60,8 @@ function ProductListItem({ product, category }: { product: Product; category: Ca
       <div
         className={`flex items-center gap-4 px-4 py-4 border-b border-gray-100 last:border-b-0 ${isOutOfStock ? 'opacity-40' : ''}`}
       >
-        <div className={`w-12 h-12 ${config.lightColor} rounded-xl flex items-center justify-center`}>
-          <Icon size={24} className={config.textColor} />
+        <div className={`w-12 h-12 ${config.light_color} rounded-xl flex items-center justify-center`}>
+          <span className="text-2xl">{config.icon}</span>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -105,7 +94,7 @@ function ProductListItem({ product, category }: { product: Product; category: Ca
       </div>
 
       {showGasModal && (
-        <GasModal
+        <DepositModal
           product={product}
           depositAmount={depositAmount}
           onClose={() => setShowGasModal(false)}
@@ -116,8 +105,8 @@ function ProductListItem({ product, category }: { product: Product; category: Ca
   )
 }
 
-// Gas Sale Type Modal - Extracted for reuse
-function GasModal({
+// Deposit Sale Type Modal - For categories with deposit system
+function DepositModal({
   product,
   depositAmount,
   onClose,
@@ -178,26 +167,23 @@ function GasModal({
 
 // Category Section - Clean layout
 function CategorySection({
-  category,
+  categoryConfig,
   products,
   viewMode,
 }: {
-  category: CategoryKey
+  categoryConfig: Category
   products: Product[]
   viewMode: ViewMode
 }) {
-  const config = categoryConfig[category]
-  const Icon = config.icon
-
   if (products.length === 0) return null
 
   return (
     <div className="mb-6">
       <div className="flex items-center gap-3 mb-3 px-1">
-        <div className={`w-9 h-9 ${config.color} rounded-xl flex items-center justify-center shadow-sm`}>
-          <Icon size={18} className="text-white" />
+        <div className={`w-9 h-9 ${categoryConfig.color} rounded-xl flex items-center justify-center shadow-sm`}>
+          <span className="text-white">{categoryConfig.icon}</span>
         </div>
-        <span className="font-bold text-gray-800 text-base">{config.name}</span>
+        <span className="font-bold text-gray-800 text-base">{categoryConfig.name}</span>
         <span className="text-sm text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
           {products.length} รายการ
         </span>
@@ -206,13 +192,13 @@ function CategorySection({
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
           {products.map((product, index) => (
-            <ProductCard key={product.id} product={product} index={index} category={category} />
+            <ProductCard key={product.id} product={product} index={index} category={categoryConfig.id} />
           ))}
         </div>
       ) : (
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
           {products.map((product) => (
-            <ProductListItem key={product.id} product={product} category={category} />
+            <ProductListItem key={product.id} product={product} categoryConfig={categoryConfig} />
           ))}
         </div>
       )}
@@ -225,11 +211,11 @@ export function POSPage() {
   const [showScanner, setShowScanner] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    // Persist view mode preference
     return (localStorage.getItem('pos-view-mode') as ViewMode) || 'grid'
   })
-  const [scannedGasProduct, setScannedGasProduct] = useState<Product | null>(null)
+  const [scannedDepositProduct, setScannedDepositProduct] = useState<Product | null>(null)
   const { showToast } = useToast()
+  const { categories, getCategoryConfig } = useCategories()
 
   // Optimized selectors - only subscribe to what we need
   const cart = useStore((s) => s.cart)
@@ -262,28 +248,33 @@ export function POSPage() {
     localStorage.setItem('pos-view-mode', mode)
   }, [])
 
-  // Memoized filtered products
-  const { iceProducts, gasProducts, waterProducts, hasResults } = useMemo(() => {
+  // Memoized filtered products grouped by category
+  const { productsByCategory, hasResults } = useMemo(() => {
     const q = searchQuery.toLowerCase()
     const filtered = searchQuery
       ? products.filter((p) => p.name.toLowerCase().includes(q) || p.barcode?.toLowerCase().includes(q))
       : products
 
+    // Group products by category
+    const grouped: Record<string, Product[]> = {}
+    for (const cat of categories) {
+      grouped[cat.id] = filtered.filter((p) => p.category === cat.id)
+    }
+
     return {
-      iceProducts: filtered.filter((p) => p.category === 'ice'),
-      gasProducts: filtered.filter((p) => p.category === 'gas'),
-      waterProducts: filtered.filter((p) => p.category === 'water'),
+      productsByCategory: grouped,
       hasResults: filtered.length > 0
     }
-  }, [products, searchQuery])
+  }, [products, searchQuery, categories])
 
   const handleBarcodeScanned = (barcode: string) => {
     setShowScanner(false)
     const product = products.find((p) => p.barcode === barcode)
     if (product) {
-      // For gas products, show the gas sale type modal
-      if (product.category === 'gas') {
-        setScannedGasProduct(product)
+      // For products with deposit, show the sale type modal
+      const catConfig = getCategoryConfig(product.category)
+      if (catConfig.has_deposit) {
+        setScannedDepositProduct(product)
       } else {
         addToCart(product)
         showToast('success', `เพิ่ม ${product.name}`, 1500)
@@ -293,11 +284,11 @@ export function POSPage() {
     }
   }
 
-  const handleScannedGasSaleType = (saleType: GasSaleType) => {
-    if (scannedGasProduct) {
-      addToCart(scannedGasProduct, saleType)
-      showToast('success', `เพิ่ม ${scannedGasProduct.name}`, 1500)
-      setScannedGasProduct(null)
+  const handleScannedDepositSaleType = (saleType: GasSaleType) => {
+    if (scannedDepositProduct) {
+      addToCart(scannedDepositProduct, saleType)
+      showToast('success', `เพิ่ม ${scannedDepositProduct.name}`, 1500)
+      setScannedDepositProduct(null)
     }
   }
 
@@ -379,9 +370,14 @@ export function POSPage() {
           </div>
         ) : (
           <>
-            <CategorySection category="ice" products={iceProducts} viewMode={viewMode} />
-            <CategorySection category="gas" products={gasProducts} viewMode={viewMode} />
-            <CategorySection category="water" products={waterProducts} viewMode={viewMode} />
+            {categories.map((cat) => (
+              <CategorySection 
+                key={cat.id} 
+                categoryConfig={cat} 
+                products={productsByCategory[cat.id] || []} 
+                viewMode={viewMode} 
+              />
+            ))}
           </>
         )}
       </div>
@@ -406,12 +402,12 @@ export function POSPage() {
 
       {showScanner && <BarcodeScanner onScan={handleBarcodeScanned} onClose={() => setShowScanner(false)} />}
 
-      {scannedGasProduct && (
-        <GasModal
-          product={scannedGasProduct}
-          depositAmount={scannedGasProduct.deposit_amount || 0}
-          onClose={() => setScannedGasProduct(null)}
-          onSelect={handleScannedGasSaleType}
+      {scannedDepositProduct && (
+        <DepositModal
+          product={scannedDepositProduct}
+          depositAmount={scannedDepositProduct.deposit_amount || 0}
+          onClose={() => setScannedDepositProduct(null)}
+          onSelect={handleScannedDepositSaleType}
         />
       )}
     </div>

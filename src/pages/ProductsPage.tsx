@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Download, Upload, AlertTriangle, Barcode, X } from 'lucide-react'
+import { Plus, Search, Download, Upload, AlertTriangle, Barcode, X, FolderCog } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
 import { ProductForm } from '../components/ProductForm'
 import { ProductList } from '../components/ProductList'
 import { BarcodeScanner } from '../components/BarcodeScanner'
+import { CategoryManager } from '../components/CategoryManager'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { useToast } from '../components/Toast'
@@ -31,6 +32,7 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showScanner, setShowScanner] = useState(false)
+  const [showCategoryManager, setShowCategoryManager] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -194,13 +196,22 @@ export function ProductsPage() {
         {(canManage || canImport) && (
           <div className="flex flex-wrap gap-2">
             {canManage && (
-              <button
-                onClick={handleAddProduct}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg font-medium"
-              >
-                <Plus size={18} />
-                เพิ่มสินค้า
-              </button>
+              <>
+                <button
+                  onClick={handleAddProduct}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg font-medium"
+                >
+                  <Plus size={18} />
+                  เพิ่มสินค้า
+                </button>
+                <button
+                  onClick={() => setShowCategoryManager(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg font-medium"
+                >
+                  <FolderCog size={18} />
+                  จัดการหมวดหมู่
+                </button>
+              </>
             )}
             {canImport && (
               <>
@@ -290,6 +301,10 @@ export function ProductsPage() {
           onScan={handleBarcodeScanned}
           onClose={() => setShowScanner(false)}
         />
+      )}
+
+      {showCategoryManager && (
+        <CategoryManager onClose={() => setShowCategoryManager(false)} />
       )}
     </div>
   )

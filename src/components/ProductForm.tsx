@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Save, Snowflake, Flame, Droplets, Loader2, Barcode, AlertCircle, Camera, ImageIcon } from 'lucide-react'
+import { X, Save, Loader2, Barcode, AlertCircle, Camera, Plus } from 'lucide-react'
 import { Product } from '../types'
 import { useStore } from '../store/useStore'
+import { useCategories } from '../hooks/useCategories'
 import { uploadProductImage, compressImage } from '../lib/imageUpload'
 
 interface Props {
@@ -11,16 +12,12 @@ interface Props {
   isLoading?: boolean
 }
 
-const categories = [
-  { value: 'ice' as const, label: 'น้ำแข็ง', icon: Snowflake },
-  { value: 'gas' as const, label: 'แก๊ส', icon: Flame },
-  { value: 'water' as const, label: 'น้ำดื่ม', icon: Droplets }
-]
-
 export function ProductForm({ product, onSave, onCancel, isLoading = false }: Props) {
+  const { categories, getCategoryConfig } = useCategories()
+  
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
-  const [category, setCategory] = useState<'ice' | 'gas' | 'water'>('ice')
+  const [category, setCategory] = useState('')
   const [unit, setUnit] = useState('')
   const [stock, setStock] = useState('0')
   const [barcode, setBarcode] = useState('')
@@ -38,6 +35,13 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
   
   // Get all products to check barcode uniqueness
   const products = useStore((s) => s.products)
+
+  // Set default category when categories load
+  useEffect(() => {
+    if (!category && categories.length > 0) {
+      setCategory(categories[0].id)
+    }
+  }, [categories, category])
 
   useEffect(() => {
     if (product) {
@@ -60,7 +64,6 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Preview image
     const reader = new FileReader()
     reader.onload = (event) => {
       setImage(event.target?.result as string)
@@ -98,7 +101,6 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
       newErrors.stock = 'กรุณากรอกจำนวนสต็อกที่ถูกต้อง'
     }
     
-    // Validate barcode uniqueness (Requirement 17.5)
     if (barcode.trim()) {
       const existingProduct = products.find(
         (p) => p.barcode === barcode.trim() && p.id !== product?.id
@@ -121,7 +123,6 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
     try {
       let imageUrl = image
 
-      // Upload new image if selected
       if (imageFile) {
         setIsUploading(true)
         const compressed = await compressImage(imageFile, 600, 0.8)
@@ -133,6 +134,8 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
         setIsUploading(false)
       }
 
+      const categoryConfig = getCategoryConfig(category)
+
       await onSave({
         name: name.trim(),
         price: parseFloat(price),
@@ -142,8 +145,8 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
         barcode: barcode.trim() || null,
         low_stock_threshold: parseInt(lowStockThreshold) || 5,
         cost: parseFloat(cost) || 0,
-        deposit_amount: category === 'gas' ? parseFloat(depositAmount) || 0 : 0,
-        outright_price: category === 'gas' ? parseFloat(outrightPrice) || 0 : 0,
+        deposit_amount: categoryConfig.has_deposit ? parseFloat(depositAmount) || 0 : 0,
+        outright_price: categoryConfig.has_deposit ? parseFloat(outrightPrice) || 0 : 0,
         melt_rate_percent: category === 'ice' ? parseFloat(meltRatePercent) || 5 : undefined,
         image: imageUrl
       })
@@ -154,6 +157,7 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
   }
   
   const isFormDisabled = isSaving || isLoading
+  const selectedCategoryConfig = getCategoryConfig(category)
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2">
@@ -205,42 +209,44 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
             />
           </div>
 
-          {/* Name & Category */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="เช่น น้ำแข็งหลอด"
-                disabled={isFormDisabled}
-                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                  errors.name ? 'border-red-500' : 'border-gray-200'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">หมวดหมู่</label>
-              <div className="flex gap-1">
-                {categories.map((cat) => {
-                  const Icon = cat.icon
-                  const isSelected = category === cat.value
-                  return (
-                    <button
-                      key={cat.value}
-                      type="button"
-                      onClick={() => setCategory(cat.value)}
-                      disabled={isFormDisabled}
-                      className={`flex-1 p-2 rounded-lg border transition-colors ${
-                        isSelected ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-500 border-gray-200'
-                      }`}
-                    >
-                      <Icon size={16} className="mx-auto" />
-                    </button>
-                  )
-                })}
-              </div>
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">ชื่อสินค้า</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="เช่น น้ำแข็งหลอด"
+              disabled={isFormDisabled}
+              className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
+                errors.name ? 'border-red-500' : 'border-gray-200'
+              }`}
+            />
+          </div>
+
+          {/* Category Selection */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">หมวดหมู่</label>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat) => {
+                const isSelected = category === cat.id
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    disabled={isFormDisabled}
+                    className={`px-3 py-2 rounded-lg border transition-colors flex items-center gap-1.5 text-sm ${
+                      isSelected 
+                        ? `${cat.color} text-white border-transparent` 
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -326,8 +332,8 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
             </div>
           </div>
 
-          {/* Gas-specific: Deposit & Outright */}
-          {category === 'gas' && (
+          {/* Deposit fields for categories with has_deposit */}
+          {selectedCategoryConfig.has_deposit && (
             <div className="grid grid-cols-2 gap-2 p-2 bg-orange-50 rounded-lg">
               <div>
                 <label className="block text-xs font-medium text-orange-700 mb-1">ค่ามัดจำถัง</label>

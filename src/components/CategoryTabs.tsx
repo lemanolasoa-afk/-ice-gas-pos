@@ -1,4 +1,4 @@
-import { Droplets, Flame, LayoutGrid, Snowflake } from 'lucide-react'
+import { Droplets, Flame, LayoutGrid, Snowflake, Package } from 'lucide-react'
 
 interface Props {
   active: string
@@ -9,6 +9,7 @@ const categories = [
   { id: 'all', name: 'ทั้งหมด', icon: LayoutGrid },
   { id: 'ice', name: 'น้ำแข็ง', icon: Snowflake },
   { id: 'gas', name: 'แก๊ส', icon: Flame },
+  { id: 'new_gas', name: 'แก๊สใหม่', icon: Package },
   { id: 'water', name: 'น้ำดื่ม', icon: Droplets },
 ]
 

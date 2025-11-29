@@ -3,7 +3,7 @@ export interface Product {
   id: string
   name: string
   price: number
-  category: 'ice' | 'gas' | 'water'
+  category: string  // Dynamic category from categories table
   unit: string
   stock: number
   barcode?: string | null
@@ -18,6 +18,20 @@ export interface Product {
   cost?: number              // ต้นทุน
   // Ice melt loss tracking
   melt_rate_percent?: number // อัตราการละลายโดยประมาณ (%/วัน)
+}
+
+// Category Interface - matches Supabase categories table
+export interface Category {
+  id: string
+  name: string
+  icon: string
+  color: string
+  light_color: string
+  text_color: string
+  sort_order: number
+  is_active: boolean
+  has_deposit: boolean  // หมวดหมู่ที่มีระบบมัดจำ (เช่น แก๊ส)
+  created_at?: string
 }
 
 // Gas sale type - for gas cylinder transactions
@@ -114,8 +128,8 @@ export interface QueuedOperation {
   retries: number
 }
 
-// Category type for filtering
-export type Category = 'all' | 'ice' | 'gas' | 'water'
+// Category type for filtering (legacy support + dynamic)
+export type CategoryFilter = 'all' | string
 
 // Report types
 export interface DailySales {
