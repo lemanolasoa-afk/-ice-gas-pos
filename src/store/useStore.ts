@@ -180,7 +180,7 @@ export const useStore = create<POSStore>()(
       // Cart Actions
       addToCart: (product, gasSaleType) => {
         set((state) => {
-          // สำหรับแก๊ส ต้องเช็ค gasSaleType ด้วย
+          // สำหรับสินค้าที่มีระบบมัดจำ ต้องเช็ค gasSaleType ด้วย
           const existing = state.cart.find((item) => 
             item.product.id === product.id && 
             item.gasSaleType === gasSaleType
@@ -194,8 +194,10 @@ export const useStore = create<POSStore>()(
               )
             }
           }
-          // Default gasSaleType เป็น 'exchange' สำหรับแก๊ส
-          const saleType = product.category === 'gas' ? (gasSaleType || 'exchange') : undefined
+          // Default gasSaleType เป็น 'exchange' สำหรับสินค้าที่มีมัดจำ (เช่น แก๊ส)
+          // ตรวจสอบจาก deposit_amount > 0 แทนการ hardcode category
+          const hasDeposit = (product.deposit_amount || 0) > 0
+          const saleType = hasDeposit ? (gasSaleType || 'exchange') : undefined
           return { cart: [...state.cart, { product, quantity: 1, gasSaleType: saleType }] }
         })
       },
@@ -230,8 +232,8 @@ export const useStore = create<POSStore>()(
 
       getTotal: () => {
         return get().cart.reduce((sum, item) => {
-          // สำหรับแก๊สซื้อขาด ใช้ outright_price
-          if (item.product.category === 'gas' && item.gasSaleType === 'outright') {
+          // สำหรับสินค้าซื้อขาด ใช้ outright_price
+          if (item.gasSaleType === 'outright') {
             const outrightPrice = item.product.outright_price || 
               (item.product.price + (item.product.deposit_amount || 0) + 500)
             return sum + outrightPrice * item.quantity
@@ -242,8 +244,8 @@ export const useStore = create<POSStore>()(
 
       getDepositTotal: () => {
         return get().cart.reduce((sum, item) => {
-          // ซื้อขาดไม่มีมัดจำ
-          if (item.product.category === 'gas' && item.gasSaleType === 'deposit') {
+          // ค้างถัง (deposit) ต้องจ่ายค่ามัดจำ
+          if (item.gasSaleType === 'deposit') {
             return sum + (item.product.deposit_amount || 0) * item.quantity
           }
           return sum
@@ -359,16 +361,14 @@ export const useStore = create<POSStore>()(
           for (const item of cart) {
             await get().updateStock(item.product.id, -item.quantity)
             
-            // Determine reason based on product type and sale type
+            // Determine reason based on sale type
             let reason = 'sale'
-            if (item.product.category === 'gas') {
-              if (item.gasSaleType === 'exchange') {
-                reason = 'exchange'
-              } else if (item.gasSaleType === 'outright') {
-                reason = 'outright_sale'
-              } else {
-                reason = 'deposit_sale'
-              }
+            if (item.gasSaleType === 'exchange') {
+              reason = 'exchange'
+            } else if (item.gasSaleType === 'outright') {
+              reason = 'outright_sale'
+            } else if (item.gasSaleType === 'deposit') {
+              reason = 'deposit_sale'
             }
             
             // Create stock log with user_id
@@ -381,8 +381,8 @@ export const useStore = create<POSStore>()(
               user_id: getCurrentUserId()
             })
             
-            // สำหรับแก๊ส: ถ้าแลกถัง ให้เพิ่ม empty_stock
-            if (item.product.category === 'gas' && item.gasSaleType === 'exchange') {
+            // สำหรับสินค้าที่มีระบบมัดจำ: ถ้าแลกถัง ให้เพิ่ม empty_stock
+            if (item.gasSaleType === 'exchange') {
               await supabase
                 .from('products')
                 .update({ 

@@ -1,47 +1,29 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Droplets, Flame, Snowflake, Check, RefreshCw, Banknote, X, Package } from 'lucide-react'
+import { Check, RefreshCw, Banknote, X } from 'lucide-react'
 import { Product, GasSaleType } from '../types'
 import { useStore } from '../store/useStore'
+import { useCategories } from '../hooks/useCategories'
 
 interface Props {
   product: Product
   index?: number
-  category?: 'ice' | 'gas' | 'water' | 'new_gas'
+  category?: string
 }
 
-const categoryIcons = {
-  ice: Snowflake,
-  gas: Flame,
-  water: Droplets,
-  new_gas: Package,
-}
-
-const categoryColors = {
-  ice: 'bg-blue-100 text-blue-600',
-  gas: 'bg-orange-100 text-orange-600',
-  water: 'bg-cyan-100 text-cyan-600',
-  new_gas: 'bg-green-100 text-green-600',
-}
-
-const categoryAccent = {
-  ice: 'border-blue-200 hover:border-blue-400 hover:shadow-md',
-  gas: 'border-orange-200 hover:border-orange-400 hover:shadow-md',
-  water: 'border-cyan-200 hover:border-cyan-400 hover:shadow-md',
-  new_gas: 'border-green-200 hover:border-green-400 hover:shadow-md',
-}
-
-// Gas Modal Component - rendered via Portal
-function GasModal({
+// Deposit Modal Component - rendered via Portal
+function DepositModal({
   product,
   depositAmount,
   outrightPrice,
+  categoryIcon,
   onClose,
   onSelect,
 }: {
   product: Product
   depositAmount: number
   outrightPrice: number
+  categoryIcon: string
   onClose: () => void
   onSelect: (type: GasSaleType) => void
 }) {
@@ -56,7 +38,7 @@ function GasModal({
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <Flame className="text-orange-500" size={24} />
+            <span className="text-2xl">{categoryIcon}</span>
             {product.name}
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl">
@@ -133,30 +115,25 @@ function GasModal({
 export function ProductCard({ product, index = 0 }: Props) {
   const addToCart = useStore((s) => s.addToCart)
   const cart = useStore((s) => s.cart)
+  const { getCategoryConfig } = useCategories()
   const [isAdding, setIsAdding] = useState(false)
-  const [showGasModal, setShowGasModal] = useState(false)
-  const Icon = categoryIcons[product.category]
+  const [showDepositModal, setShowDepositModal] = useState(false)
+  
+  const categoryConfig = getCategoryConfig(product.category)
 
   const cartItem = cart.find((item) => item.product.id === product.id)
   const quantity = cartItem?.quantity || 0
   const isLowStock = product.stock <= product.low_stock_threshold
   const isOutOfStock = product.stock <= 0
-  const isGas = product.category === 'gas'
+  const hasDeposit = categoryConfig.has_deposit
   const depositAmount = product.deposit_amount || 0
   const outrightPrice = product.outright_price || (product.price + depositAmount + 500)
 
   const handleClick = () => {
     if (isOutOfStock) return
-    // แก๊สปกติ (มีแลกถัง/มัดจำ) ต้องเลือกรูปแบบ
-    if (isGas) {
-      setShowGasModal(true)
-      return
-    }
-    // แก๊สใหม่ขายขาดเลย ไม่ต้องเลือก
-    if (product.category === 'new_gas') {
-      setIsAdding(true)
-      addToCart(product, 'outright')
-      setTimeout(() => setIsAdding(false), 300)
+    // Categories with deposit system need to select sale type
+    if (hasDeposit) {
+      setShowDepositModal(true)
       return
     }
     setIsAdding(true)
@@ -164,12 +141,19 @@ export function ProductCard({ product, index = 0 }: Props) {
     setTimeout(() => setIsAdding(false), 300)
   }
 
-  const handleGasSaleType = (saleType: GasSaleType) => {
-    setShowGasModal(false)
+  const handleDepositSaleType = (saleType: GasSaleType) => {
+    setShowDepositModal(false)
     setIsAdding(true)
     addToCart(product, saleType)
     setTimeout(() => setIsAdding(false), 300)
   }
+
+  // Dynamic accent colors based on category
+  const accentClass = isOutOfStock
+    ? 'border-gray-200'
+    : isAdding
+      ? 'border-green-400 bg-green-50'
+      : `border-gray-200 hover:shadow-md active:scale-95`
 
   return (
     <>
@@ -178,13 +162,8 @@ export function ProductCard({ product, index = 0 }: Props) {
         disabled={isOutOfStock}
         style={{ animationDelay: `${index * 30}ms` }}
         className={`relative bg-white rounded-2xl p-4 flex flex-col items-center gap-2 border-2 transition-all duration-200 stagger-item shadow-sm
-          ${
-            isOutOfStock
-              ? 'opacity-50 cursor-not-allowed border-gray-200'
-              : isAdding
-                ? 'scale-95 border-green-400 bg-green-50'
-                : `${categoryAccent[product.category]} active:scale-95`
-          }
+          ${isOutOfStock ? 'opacity-50 cursor-not-allowed' : 'scale-95'}
+          ${accentClass}
         `}
       >
         {/* Quantity badge */}
@@ -205,14 +184,14 @@ export function ProductCard({ product, index = 0 }: Props) {
         <div
           className={`w-14 h-14 rounded-xl transition-transform duration-200 overflow-hidden flex items-center justify-center ${
             isAdding ? 'scale-110' : ''
-          } ${!product.image ? categoryColors[product.category] : ''}`}
+          } ${!product.image ? categoryConfig.light_color : ''}`}
         >
           {isAdding ? (
             <Check size={28} className="text-green-600" />
           ) : product.image ? (
             <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
           ) : (
-            <Icon size={28} />
+            <span className="text-3xl">{categoryConfig.icon}</span>
           )}
         </div>
 
@@ -225,7 +204,7 @@ export function ProductCard({ product, index = 0 }: Props) {
         <div className="flex flex-col items-center">
           <span className="text-lg font-bold text-gray-900">฿{product.price}</span>
           <span className="text-xs text-gray-500 font-medium">/{product.unit}</span>
-          {product.cost > 0 && (
+          {product.cost && product.cost > 0 && (
             <span className={`text-[10px] font-medium mt-0.5 px-1.5 py-0.5 rounded ${
               ((product.price - product.cost) / product.price) * 100 >= 30 
                 ? 'bg-green-100 text-green-700' 
@@ -244,14 +223,15 @@ export function ProductCard({ product, index = 0 }: Props) {
         )}
       </button>
 
-      {/* Gas Modal - rendered outside button via Portal */}
-      {showGasModal && (
-        <GasModal
+      {/* Deposit Modal - rendered outside button via Portal */}
+      {showDepositModal && (
+        <DepositModal
           product={product}
           depositAmount={depositAmount}
           outrightPrice={outrightPrice}
-          onClose={() => setShowGasModal(false)}
-          onSelect={handleGasSaleType}
+          categoryIcon={categoryConfig.icon}
+          onClose={() => setShowDepositModal(false)}
+          onSelect={handleDepositSaleType}
         />
       )}
     </>

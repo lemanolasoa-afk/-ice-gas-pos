@@ -392,7 +392,7 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
 
           {/* Barcode */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
+            <label className="text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
               <Barcode size={12} /> Barcode
             </label>
             <input

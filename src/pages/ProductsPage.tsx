@@ -9,6 +9,7 @@ import { CategoryManager } from '../components/CategoryManager'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { useToast } from '../components/Toast'
+import { useCategories } from '../hooks/useCategories'
 import { Product } from '../types'
 import { hasPermission } from '../lib/permissions'
 
@@ -23,6 +24,7 @@ export function ProductsPage() {
   const clearError = useStore((s) => s.clearError)
   const { showToast } = useToast()
   const { user } = useAuthStore()
+  const { categories, fetchCategories } = useCategories()
 
   // Permission checks
   const canManage = hasPermission(user?.role, 'products.manage')
@@ -280,6 +282,7 @@ export function ProductsPage() {
         ) : (
           <ProductList
             products={filteredProducts}
+            categories={categories}
             onEdit={canManage ? handleEditProduct : undefined}
             onDelete={canManage ? handleDeleteProduct : undefined}
           />
@@ -304,7 +307,7 @@ export function ProductsPage() {
       )}
 
       {showCategoryManager && (
-        <CategoryManager onClose={() => setShowCategoryManager(false)} />
+        <CategoryManager onClose={() => { setShowCategoryManager(false); fetchCategories() }} />
       )}
     </div>
   )
