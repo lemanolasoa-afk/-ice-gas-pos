@@ -47,6 +47,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // Import custom service worker for push notifications
+        importScripts: ['sw-custom.js'],
+        // Skip waiting to activate new service worker immediately
+        skipWaiting: true,
+        clientsClaim: true,
+        // Offline fallback
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/],
         // Runtime caching for API requests (Supabase)
         runtimeCaching: [
           {

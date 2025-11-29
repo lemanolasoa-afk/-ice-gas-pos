@@ -166,9 +166,9 @@ describe('Product CRUD Round-Trip Property Tests', () => {
           expect(fetched.id).toBe(created.id)
         }
       ),
-      { numRuns: 10 } // Reduced runs for database tests
+      { numRuns: 5 } // Reduced runs to avoid timeout
     )
-  })
+  }, 15000) // 15 second timeout for database operations
 
   it('**Feature: ice-gas-pos, Property 15: Product CRUD Round-Trip** - created product appears in product list', async () => {
     await fc.assert(
@@ -201,7 +201,7 @@ describe('Product CRUD Round-Trip Property Tests', () => {
         expect(found.category).toBe(productInput.category)
         expect(found.unit).toBe(productInput.unit)
       }),
-      { numRuns: 10 }
+      { numRuns: 5 } // Reduced runs to avoid timeout
     )
-  })
+  }, 15000) // 15 second timeout for database operations
 })

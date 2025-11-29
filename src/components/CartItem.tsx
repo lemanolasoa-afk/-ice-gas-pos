@@ -66,7 +66,7 @@ export function CartItem({ item, index = 0 }: Props) {
   return (
     <div
       style={{ animationDelay: `${index * 50}ms` }}
-      className={`bg-white p-3 rounded-xl border border-gray-100 transition-all duration-200 stagger-item
+      className={`bg-white p-3 pb-4 border-b-2 border-gray-200 transition-all duration-200 stagger-item
         ${isRemoving ? 'opacity-0 scale-95 -translate-x-4' : 'opacity-100'}
       `}
     >

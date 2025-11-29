@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Bell, BellOff, Package, Target, RefreshCw, ShoppingCart, CreditCard, Loader2 } from 'lucide-react'
+import { Bell, BellOff, Package, Target, RefreshCw, ShoppingCart, CreditCard, Loader2, Droplets } from 'lucide-react'
 import { PushManager } from '../lib/pushManager'
 import { NotificationTriggers } from '../lib/notificationTriggers'
 import { useAuthStore } from '../store/authStore'
@@ -11,6 +11,7 @@ interface Settings {
   sync_complete: boolean
   sale_complete: boolean
   credit_due: boolean
+  melt_loss_abnormal: boolean
   daily_target_amount: number
 }
 
@@ -28,6 +29,7 @@ export function NotificationSettings() {
     sync_complete: false,
     sale_complete: false,
     credit_due: true,
+    melt_loss_abnormal: true,
     daily_target_amount: 10000
   })
 
@@ -62,6 +64,7 @@ export function NotificationSettings() {
         sync_complete: data.sync_complete,
         sale_complete: data.sale_complete,
         credit_due: data.credit_due,
+        melt_loss_abnormal: data.melt_loss_abnormal ?? true,
         daily_target_amount: data.daily_target_amount
       })
     }
@@ -102,6 +105,7 @@ export function NotificationSettings() {
       sync_complete: newSettings.sync_complete,
       sale_complete: newSettings.sale_complete,
       credit_due: newSettings.credit_due,
+      melt_loss_abnormal: newSettings.melt_loss_abnormal,
       daily_target_amount: newSettings.daily_target_amount
     })
     setSaving(false)
@@ -242,6 +246,14 @@ export function NotificationSettings() {
                 label="วางบิลครบกำหนด"
                 checked={settings.credit_due}
                 onChange={(v) => updateSetting('credit_due', v)}
+              />
+
+              {/* Melt Loss Abnormal */}
+              <SettingRow
+                icon={<Droplets className="w-5 h-5 text-cyan-500" />}
+                label="น้ำแข็งละลายผิดปกติ"
+                checked={settings.melt_loss_abnormal}
+                onChange={(v) => updateSetting('melt_loss_abnormal', v)}
               />
             </>
           )}

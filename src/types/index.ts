@@ -16,6 +16,8 @@ export interface Product {
   deposit_amount?: number    // ค่ามัดจำถัง
   outright_price?: number    // ราคาซื้อขาด (ซื้อถังไปเลย ไม่ต้องคืน)
   cost?: number              // ต้นทุน
+  // Ice melt loss tracking
+  melt_rate_percent?: number // อัตราการละลายโดยประมาณ (%/วัน)
 }
 
 // Gas sale type - for gas cylinder transactions
@@ -128,3 +130,73 @@ export interface TopProduct {
   quantity: number
   revenue: number
 }
+
+
+// ===== Melt Loss Tracking Types =====
+
+// Daily Stock Count - บันทึกการปิดยอดสต๊อกประจำวัน
+export interface DailyStockCount {
+  id: string
+  product_id: string
+  count_date: string          // YYYY-MM-DD
+  system_stock: number        // สต๊อกในระบบก่อนปิดยอด
+  actual_stock: number        // สต๊อกจริงที่นับได้
+  melt_loss: number           // จำนวนที่ละลาย
+  melt_loss_value: number     // มูลค่าที่สูญเสีย
+  melt_percent: number        // % การละลายจริง
+  expected_melt_percent: number // % ที่คาดการณ์
+  is_abnormal: boolean        // ละลายผิดปกติหรือไม่
+  user_id?: string
+  note?: string
+  created_at?: string
+  // Joined fields
+  product_name?: string
+  product_cost?: number
+}
+
+// Stock Count Input - สำหรับกรอกข้อมูลปิดยอด
+export interface StockCountInput {
+  product_id: string
+  product_name: string
+  system_stock: number        // สต๊อกในระบบ
+  sold_today: number          // ขายวันนี้
+  expected_stock: number      // คงเหลือควร (system - sold)
+  actual_stock: number        // สต๊อกจริง (user input)
+  melt_loss: number           // ละลาย (expected - actual)
+  melt_percent: number        // % ละลาย
+  expected_melt_percent: number
+  is_abnormal: boolean
+  cost: number
+}
+
+// Melt Loss Report Summary
+export interface MeltLossReportSummary {
+  total_melt_loss: number     // รวมจำนวนที่ละลาย
+  total_melt_value: number    // รวมมูลค่าที่สูญเสีย
+  average_melt_percent: number // % เฉลี่ย
+  abnormal_count: number      // จำนวนครั้งที่ผิดปกติ
+}
+
+// Melt Loss by Product
+export interface MeltLossByProduct {
+  product_id: string
+  product_name: string
+  total_melt_loss: number
+  total_melt_value: number
+  average_melt_percent: number
+  expected_melt_percent: number
+  count_days: number
+}
+
+// Stock Log Reason - เพิ่ม melt_loss
+export type StockLogReason = 
+  | 'sale' 
+  | 'receipt' 
+  | 'adjustment' 
+  | 'return' 
+  | 'exchange' 
+  | 'deposit_sale' 
+  | 'deposit_return' 
+  | 'refill' 
+  | 'outright_sale' 
+  | 'melt_loss'

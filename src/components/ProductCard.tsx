@@ -190,13 +190,19 @@ export function ProductCard({ product, index = 0 }: Props) {
           </div>
         )}
 
-        {/* Icon */}
+        {/* Image or Icon */}
         <div
-          className={`${categoryColors[product.category]} p-3 rounded-xl transition-transform duration-200 ${
+          className={`w-14 h-14 rounded-xl transition-transform duration-200 overflow-hidden flex items-center justify-center ${
             isAdding ? 'scale-110' : ''
-          }`}
+          } ${!product.image ? categoryColors[product.category] : ''}`}
         >
-          {isAdding ? <Check size={28} className="text-green-600" /> : <Icon size={28} />}
+          {isAdding ? (
+            <Check size={28} className="text-green-600" />
+          ) : product.image ? (
+            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <Icon size={28} />
+          )}
         </div>
 
         {/* Name */}

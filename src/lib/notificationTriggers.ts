@@ -7,6 +7,7 @@ export type NotificationType =
   | 'sync_complete'
   | 'sale_complete'
   | 'credit_due'
+  | 'melt_loss_abnormal'
   | 'system'
 
 // Flag to use Edge Function for push notifications (server-side)
@@ -21,6 +22,7 @@ interface NotificationSettings {
   sync_complete: boolean
   sale_complete: boolean
   credit_due: boolean
+  melt_loss_abnormal: boolean
   daily_target_amount: number
 }
 
@@ -204,6 +206,41 @@ export class NotificationTriggers {
       await this.logNotification(userId, 'credit_due', payload)
       await PushManager.showLocalNotification(payload)
     }
+  }
+
+  /**
+   * Send melt loss abnormal notification
+   */
+  static async notifyMeltLossAbnormal(
+    productName: string,
+    meltPercent: number,
+    expectedPercent: number
+  ): Promise<void> {
+    // Get users with melt_loss_abnormal enabled
+    const { data: settings } = await supabase
+      .from('notification_settings')
+      .select('user_id')
+      .eq('melt_loss_abnormal', true)
+      .eq('enabled', true)
+
+    if (!settings?.length) return
+
+    const payload: NotificationPayload = {
+      title: '⚠️ การละลายผิดปกติ',
+      body: `${productName} ละลาย ${meltPercent.toFixed(1)}% (คาดการณ์ ${expectedPercent}%)`,
+      tag: `melt-loss-abnormal-${Date.now()}`,
+      data: {
+        type: 'melt_loss_abnormal' as NotificationType,
+        url: '/melt-loss-report'
+      }
+    }
+
+    for (const setting of settings) {
+      await this.logNotification(setting.user_id, 'melt_loss_abnormal', payload)
+    }
+
+    // Show local notification
+    await PushManager.showLocalNotification(payload)
   }
 
   /**

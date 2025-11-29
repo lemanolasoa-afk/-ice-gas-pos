@@ -4,7 +4,7 @@ import {
   Store, Trash2, Download, Info, Package, BarChart3, Users,
   Tag, PackagePlus, ChevronRight, TrendingUp, ShoppingCart,
   LogOut, History, DollarSign, UserCog, Smartphone, AlertCircle, Bell,
-  Database
+  Database, Snowflake, Droplets
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
@@ -84,6 +84,8 @@ export function SettingsPage() {
     { icon: Package, label: 'จัดการสินค้า', desc: `${products.length} รายการ`, path: '/products', color: 'bg-blue-500', permission: 'products.view' },
     { icon: PackagePlus, label: 'รับสินค้าเข้าสต็อก', desc: 'เพิ่มสต็อกสินค้า', path: '/stock-receipt', color: 'bg-green-500', permission: 'stock.receive' },
     { icon: History, label: 'ประวัติสต็อก', desc: 'ดู log การเปลี่ยนแปลง', path: '/stock-logs', color: 'bg-teal-500', permission: 'stock.logs' },
+    { icon: Snowflake, label: 'ปิดยอดสต๊อกน้ำแข็ง', desc: 'บันทึกการละลายประจำวัน', path: '/daily-stock-count', color: 'bg-cyan-500', permission: 'stock.receive' },
+    { icon: Droplets, label: 'รายงานการละลาย', desc: 'สรุปการสูญเสียจากการละลาย', path: '/melt-loss-report', color: 'bg-amber-500', permission: 'reports.view' },
     { icon: BarChart3, label: 'รายงานยอดขาย', desc: 'ดูสถิติและกราฟ', path: '/reports', color: 'bg-purple-500', permission: 'reports.view' },
     { icon: DollarSign, label: 'รายงานกำไร', desc: 'วิเคราะห์กำไรขาดทุน', path: '/profit', color: 'bg-emerald-500', permission: 'reports.profit' },
     { icon: Users, label: 'ลูกค้าสมาชิก', desc: 'ระบบสะสมแต้ม', path: '/customers', color: 'bg-orange-500', permission: 'customers.view' },

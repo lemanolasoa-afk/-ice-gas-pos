@@ -42,7 +42,7 @@ describe('Gas Exchange Stock Changes Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 16: Gas Exchange Stock Changes** - exchange decreases full stock by quantity', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, true) // hasEmptyCylinder = true
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'exchange')
         
         // Find the full stock change
         const fullStockChange = result.stockChanges.find(c => c.type === 'full')
@@ -57,7 +57,7 @@ describe('Gas Exchange Stock Changes Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 16: Gas Exchange Stock Changes** - exchange increases empty stock by quantity', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, true) // hasEmptyCylinder = true
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'exchange')
         
         // Find the empty stock change
         const emptyStockChange = result.stockChanges.find(c => c.type === 'empty')
@@ -72,7 +72,7 @@ describe('Gas Exchange Stock Changes Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 16: Gas Exchange Stock Changes** - exchange has exactly two stock changes', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, true)
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'exchange')
         
         // Exchange should have exactly 2 stock changes: -full, +empty
         expect(result.stockChanges).toHaveLength(2)
@@ -85,7 +85,7 @@ describe('Gas Exchange Stock Changes Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 16: Gas Exchange Stock Changes** - exchange has zero deposit amount', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, true)
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'exchange')
         
         // Exchange should have no deposit
         expect(result.depositAmount).toBe(0)
@@ -97,7 +97,7 @@ describe('Gas Exchange Stock Changes Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 16: Gas Exchange Stock Changes** - exchange price equals product price times quantity', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, true)
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'exchange')
         
         const expectedPrice = product.price * quantity
         expect(result.price).toBeCloseTo(expectedPrice, 5)
@@ -112,7 +112,7 @@ describe('Gas Deposit Calculation Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 17: Gas Deposit Calculation** - deposit total equals (price + deposit_amount) × quantity', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, false) // hasEmptyCylinder = false
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'deposit')
         
         const depositAmount = product.deposit_amount || 0
         const expectedTotal = (product.price + depositAmount) * quantity
@@ -126,7 +126,7 @@ describe('Gas Deposit Calculation Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 17: Gas Deposit Calculation** - deposit amount equals product deposit times quantity', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, false)
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'deposit')
         
         const expectedDeposit = (product.deposit_amount || 0) * quantity
         expect(result.depositAmount).toBeCloseTo(expectedDeposit, 5)
@@ -138,7 +138,7 @@ describe('Gas Deposit Calculation Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 17: Gas Deposit Calculation** - deposit only decreases full stock', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, false)
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'deposit')
         
         // Deposit should only have 1 stock change: -full
         expect(result.stockChanges).toHaveLength(1)
@@ -152,7 +152,7 @@ describe('Gas Deposit Calculation Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 17: Gas Deposit Calculation** - deposit sale type is deposit', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, false)
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'deposit')
         
         expect(result.saleType).toBe('deposit')
       }),
@@ -163,7 +163,7 @@ describe('Gas Deposit Calculation Property Tests', () => {
   it('**Feature: ice-gas-pos, Property 17: Gas Deposit Calculation** - price component equals product price times quantity', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const result = GasCylinderManager.handleGasSale(product, quantity, false)
+        const result = GasCylinderManager.handleGasSale(product, quantity, 'deposit')
         
         const expectedPrice = product.price * quantity
         expect(result.price).toBeCloseTo(expectedPrice, 5)
@@ -241,7 +241,7 @@ describe('Gas Price Calculation Utility Tests', () => {
   it('**Feature: ice-gas-pos, Property 17: Gas Deposit Calculation** - calculateGasPrice exchange matches handleGasSale', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const saleResult = GasCylinderManager.handleGasSale(product, quantity, true)
+        const saleResult = GasCylinderManager.handleGasSale(product, quantity, 'exchange')
         const priceResult = GasCylinderManager.calculateGasPrice(product, quantity, 'exchange')
         
         expect(priceResult.price).toBeCloseTo(saleResult.price, 5)
@@ -255,7 +255,7 @@ describe('Gas Price Calculation Utility Tests', () => {
   it('**Feature: ice-gas-pos, Property 17: Gas Deposit Calculation** - calculateGasPrice deposit matches handleGasSale', () => {
     fc.assert(
       fc.property(gasProductArbitrary, quantityArbitrary, (product, quantity) => {
-        const saleResult = GasCylinderManager.handleGasSale(product, quantity, false)
+        const saleResult = GasCylinderManager.handleGasSale(product, quantity, 'deposit')
         const priceResult = GasCylinderManager.calculateGasPrice(product, quantity, 'deposit')
         
         expect(priceResult.price).toBeCloseTo(saleResult.price, 5)

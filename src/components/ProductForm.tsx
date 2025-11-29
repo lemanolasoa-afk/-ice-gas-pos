@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import { X, Save, Snowflake, Flame, Droplets, Loader2, Barcode, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Save, Snowflake, Flame, Droplets, Loader2, Barcode, AlertCircle, Camera, ImageIcon } from 'lucide-react'
 import { Product } from '../types'
 import { useStore } from '../store/useStore'
+import { uploadProductImage, compressImage } from '../lib/imageUpload'
 
 interface Props {
   product?: Product | null
@@ -27,8 +28,13 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
   const [cost, setCost] = useState('0')
   const [depositAmount, setDepositAmount] = useState('0')
   const [outrightPrice, setOutrightPrice] = useState('0')
+  const [meltRatePercent, setMeltRatePercent] = useState('5')
+  const [image, setImage] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSaving, setIsSaving] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Get all products to check barcode uniqueness
   const products = useStore((s) => s.products)
@@ -45,8 +51,31 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
       setCost(product.cost?.toString() || '0')
       setDepositAmount(product.deposit_amount?.toString() || '0')
       setOutrightPrice(product.outright_price?.toString() || '0')
+      setMeltRatePercent(product.melt_rate_percent?.toString() || '5')
+      setImage(product.image || null)
     }
   }, [product])
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Preview image
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setImage(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+    setImageFile(file)
+  }
+
+  const handleRemoveImage = () => {
+    setImage(null)
+    setImageFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -90,6 +119,20 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
     
     setIsSaving(true)
     try {
+      let imageUrl = image
+
+      // Upload new image if selected
+      if (imageFile) {
+        setIsUploading(true)
+        const compressed = await compressImage(imageFile, 600, 0.8)
+        const productId = product?.id || `new-${Date.now()}`
+        const uploadedUrl = await uploadProductImage(compressed, productId)
+        if (uploadedUrl) {
+          imageUrl = uploadedUrl
+        }
+        setIsUploading(false)
+      }
+
       await onSave({
         name: name.trim(),
         price: parseFloat(price),
@@ -100,10 +143,13 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
         low_stock_threshold: parseInt(lowStockThreshold) || 5,
         cost: parseFloat(cost) || 0,
         deposit_amount: category === 'gas' ? parseFloat(depositAmount) || 0 : 0,
-        outright_price: category === 'gas' ? parseFloat(outrightPrice) || 0 : 0
+        outright_price: category === 'gas' ? parseFloat(outrightPrice) || 0 : 0,
+        melt_rate_percent: category === 'ice' ? parseFloat(meltRatePercent) || 5 : undefined,
+        image: imageUrl
       })
     } finally {
       setIsSaving(false)
+      setIsUploading(false)
     }
   }
   
@@ -125,6 +171,40 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
         </div>
 
         <form onSubmit={handleSubmit} className="p-3 space-y-3 overflow-y-auto flex-1">
+          {/* Image Upload */}
+          <div className="flex items-center gap-3">
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors overflow-hidden"
+            >
+              {image ? (
+                <img src={image} alt="Preview" className="w-full h-full object-cover" />
+              ) : (
+                <Camera size={24} className="text-gray-400" />
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-medium text-gray-700">รูปสินค้า</p>
+              <p className="text-[10px] text-gray-500">กดเพื่อเลือกรูป (ไม่บังคับ)</p>
+              {image && (
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="text-xs text-red-500 hover:underline mt-1"
+                >
+                  ลบรูป
+                </button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
+
           {/* Name & Category */}
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2">
@@ -279,6 +359,31 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
             </div>
           )}
 
+          {/* Ice-specific: Melt Rate */}
+          {category === 'ice' && (
+            <div className="p-2 bg-cyan-50 rounded-lg">
+              <div>
+                <label className="block text-xs font-medium text-cyan-700 mb-1">
+                  อัตราการละลาย (%/วัน)
+                </label>
+                <input
+                  type="number"
+                  value={meltRatePercent}
+                  onChange={(e) => setMeltRatePercent(e.target.value)}
+                  placeholder="5"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  disabled={isFormDisabled}
+                  className="w-full px-3 py-2 text-sm border border-cyan-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1">
+                ใช้คำนวณการสูญเสียจากการละลายในการปิดยอดสต๊อก
+              </p>
+            </div>
+          )}
+
           {/* Barcode */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
@@ -316,8 +421,8 @@ export function ProductForm({ product, onSave, onCancel, isLoading = false }: Pr
               disabled={isFormDisabled}
               className="flex-1 py-2.5 px-3 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700 flex items-center justify-center gap-1.5"
             >
-              {isSaving ? (
-                <><Loader2 size={16} className="animate-spin" /> บันทึก...</>
+              {isSaving || isUploading ? (
+                <><Loader2 size={16} className="animate-spin" /> {isUploading ? 'อัพโหลดรูป...' : 'บันทึก...'}</>
               ) : (
                 <><Save size={16} /> {product ? 'บันทึก' : 'เพิ่ม'}</>
               )}

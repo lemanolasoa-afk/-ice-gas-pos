@@ -1,0 +1,260 @@
+import { useState, useEffect, useCallback } from 'react'
+import { ArrowLeft, Calendar, Save, Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { StockCountCard } from '../components/stock/StockCountCard'
+import { useMeltLoss } from '../hooks/useMeltLoss'
+import { Product } from '../types'
+import { useStore } from '../store/useStore'
+import { NotificationTriggers } from '../lib/notificationTriggers'
+import { calculateAllMeltLossData } from '../lib/meltLossCalculations'
+
+interface StockCountData {
+  actualStock: number // รองรับค่าทศนิยม เช่น 0.5, 10.5
+  isAbnormal: boolean
+}
+
+export function DailyStockCountPage() {
+  const navigate = useNavigate()
+  const { currentUser } = useStore()
+  const { loading, error, getIceProducts, getAllTodaySales, saveDailyStockCount } = useMeltLoss()
+  
+  const [products, setProducts] = useState<Product[]>([])
+  const [salesByProduct, setSalesByProduct] = useState<Record<string, number>>({})
+  const [stockCounts, setStockCounts] = useState<Record<string, StockCountData>>({})
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveResult, setSaveResult] = useState<{ success: boolean; abnormalCount: number } | null>(null)
+  const [selectedDate] = useState(new Date().toISOString().split('T')[0])
+
+  // Load ice products and today's sales
+  useEffect(() => {
+    async function loadData() {
+      const iceProducts = await getIceProducts()
+      setProducts(iceProducts)
+      
+      if (iceProducts.length > 0) {
+        const productIds = iceProducts.map(p => p.id)
+        const sales = await getAllTodaySales(productIds)
+        setSalesByProduct(sales)
+      }
+    }
+    loadData()
+  }, [getIceProducts, getAllTodaySales])
+
+  // Handle stock count change
+  const handleStockCountChange = useCallback((productId: string, actualStock: number, isAbnormal: boolean) => {
+    setStockCounts(prev => ({
+      ...prev,
+      [productId]: { actualStock, isAbnormal }
+    }))
+  }, [])
+
+  // Save all stock counts
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveResult(null)
+    
+    let abnormalCount = 0
+    let hasError = false
+    const abnormalProducts: { name: string; meltPercent: number; expectedPercent: number }[] = []
+
+    for (const product of products) {
+      const countData = stockCounts[product.id]
+      if (!countData) continue
+
+      const soldToday = salesByProduct[product.id] || 0
+      const result = await saveDailyStockCount(
+        product,
+        countData.actualStock,
+        soldToday,
+        currentUser?.id,
+        note
+      )
+
+      if (!result.success) {
+        hasError = true
+        break
+      }
+
+      if (result.isAbnormal) {
+        abnormalCount++
+        // Calculate melt data for notification
+        const expectedMeltPercent = product.melt_rate_percent || 5
+        const calc = calculateAllMeltLossData(
+          product.stock,
+          soldToday,
+          countData.actualStock,
+          expectedMeltPercent,
+          product.cost || 0
+        )
+        abnormalProducts.push({
+          name: product.name,
+          meltPercent: calc.meltPercent,
+          expectedPercent: expectedMeltPercent
+        })
+      }
+    }
+
+    setSaving(false)
+    
+    if (!hasError) {
+      setSaveResult({ success: true, abnormalCount })
+      
+      // Send notifications for abnormal melt loss
+      for (const abnormal of abnormalProducts) {
+        await NotificationTriggers.notifyMeltLossAbnormal(
+          abnormal.name,
+          abnormal.meltPercent,
+          abnormal.expectedPercent
+        )
+      }
+      
+      // Reload products to get updated stock
+      const iceProducts = await getIceProducts()
+      setProducts(iceProducts)
+    }
+  }
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('th-TH', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const hasAbnormal = Object.values(stockCounts).some(c => c.isAbnormal)
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <div className="flex-1">
+              <h1 className="text-xl font-bold text-gray-900">ปิดยอดสต๊อกประจำวัน</h1>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <Calendar size={14} />
+                <span>{formatDate(selectedDate)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-lg mx-auto px-4 py-4">
+        {loading && products.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="animate-spin text-blue-500" size={32} />
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 text-red-700 p-4 rounded-xl">
+            {error}
+          </div>
+        ) : products.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            ไม่มีสินค้าประเภทน้ำแข็ง
+          </div>
+        ) : (
+          <>
+            {/* Success/Warning Message */}
+            {saveResult && (
+              <div className={`mb-4 p-4 rounded-xl flex items-center gap-3 ${
+                saveResult.abnormalCount > 0 
+                  ? 'bg-amber-50 border border-amber-200' 
+                  : 'bg-green-50 border border-green-200'
+              }`}>
+                {saveResult.abnormalCount > 0 ? (
+                  <>
+                    <AlertTriangle className="text-amber-500" size={24} />
+                    <div>
+                      <p className="font-semibold text-amber-700">บันทึกสำเร็จ</p>
+                      <p className="text-sm text-amber-600">
+                        พบการละลายผิดปกติ {saveResult.abnormalCount} รายการ
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="text-green-500" size={24} />
+                    <div>
+                      <p className="font-semibold text-green-700">บันทึกสำเร็จ</p>
+                      <p className="text-sm text-green-600">อัพเดทสต๊อกเรียบร้อยแล้ว</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Product Cards */}
+            <div className="space-y-4 mb-6">
+              {products.map(product => (
+                <StockCountCard
+                  key={product.id}
+                  product={product}
+                  soldToday={salesByProduct[product.id] || 0}
+                  onActualStockChange={handleStockCountChange}
+                />
+              ))}
+            </div>
+
+            {/* Note */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                หมายเหตุ (ถ้ามี)
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                rows={2}
+                placeholder="เช่น ตู้แช่มีปัญหา, ไฟดับ..."
+              />
+            </div>
+
+            {/* Warning if abnormal */}
+            {hasAbnormal && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertTriangle size={20} />
+                  <span className="font-semibold">พบการละลายผิดปกติ!</span>
+                </div>
+                <p className="text-sm text-red-600 mt-1">
+                  ควรตรวจสอบตู้แช่หรือสภาพการเก็บรักษา
+                </p>
+              </div>
+            )}
+
+            {/* Save Button */}
+            <button
+              onClick={handleSave}
+              disabled={saving || products.length === 0}
+              className="w-full py-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  กำลังบันทึก...
+                </>
+              ) : (
+                <>
+                  <Save size={20} />
+                  บันทึกปิดยอด
+                </>
+              )}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

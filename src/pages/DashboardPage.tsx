@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   TrendingUp, ShoppingCart, Package, Users, Clock,
-  ArrowRight, AlertTriangle, Star, BarChart3, DollarSign
+  ArrowRight, AlertTriangle, Star, BarChart3, DollarSign, ClipboardCheck
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
@@ -124,13 +124,13 @@ export function DashboardPage() {
         )}
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <button
             onClick={() => navigate('/')}
             className="bg-gray-800 text-white rounded-xl p-4 flex flex-col items-center gap-2"
           >
             <ShoppingCart size={24} />
-            <span className="font-medium">เริ่มขาย</span>
+            <span className="font-medium text-sm">เริ่มขาย</span>
           </button>
           {hasPermission(user?.role, 'stock.receive') && (
             <button
@@ -138,7 +138,16 @@ export function DashboardPage() {
               className="bg-white border border-gray-200 text-gray-800 rounded-xl p-4 flex flex-col items-center gap-2"
             >
               <Package size={24} />
-              <span className="font-medium">รับสินค้า</span>
+              <span className="font-medium text-sm">รับสินค้า</span>
+            </button>
+          )}
+          {hasPermission(user?.role, 'stock.receive') && (
+            <button
+              onClick={() => navigate('/daily-stock-count')}
+              className="bg-blue-600 text-white rounded-xl p-4 flex flex-col items-center gap-2"
+            >
+              <ClipboardCheck size={24} />
+              <span className="font-medium text-sm">ปิดยอดสต๊อก</span>
             </button>
           )}
         </div>
