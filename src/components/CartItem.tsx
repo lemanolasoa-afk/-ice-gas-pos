@@ -1,31 +1,30 @@
 import { useState } from 'react'
-import { Minus, Plus, Trash2, Snowflake, Flame, Droplets, RefreshCw, Banknote, Check } from 'lucide-react'
+import { Minus, Plus, Trash2, Snowflake, Flame, Droplets, RefreshCw, Banknote, Check, Package } from 'lucide-react'
 import { CartItem as CartItemType } from '../types'
 import { useStore } from '../store/useStore'
+import { useCategories } from '../hooks/useCategories'
 
 interface Props {
   item: CartItemType
   index?: number
 }
 
-const categoryIcons = {
+// Fallback icons for known categories
+const fallbackIcons: Record<string, React.ComponentType<{ size?: number }>> = {
   ice: Snowflake,
   gas: Flame,
   water: Droplets,
 }
 
-const categoryColors = {
-  ice: 'bg-gray-100 text-gray-600',
-  gas: 'bg-gray-100 text-gray-600',
-  water: 'bg-gray-100 text-gray-600',
-}
-
 export function CartItem({ item, index = 0 }: Props) {
   const { updateQuantity, removeFromCart, updateGasSaleType } = useStore()
+  const { getCategoryConfig } = useCategories()
   const [isRemoving, setIsRemoving] = useState(false)
-  const Icon = categoryIcons[item.product.category]
   
-  const isGas = item.product.category === 'gas'
+  const categoryConfig = getCategoryConfig(item.product.category)
+  const FallbackIcon = fallbackIcons[item.product.category] || Package
+  
+  const hasDeposit = categoryConfig.has_deposit
   const depositAmount = item.product.deposit_amount || 0
   const outrightPrice = item.product.outright_price || (item.product.price + depositAmount + 500)
 
@@ -48,9 +47,9 @@ export function CartItem({ item, index = 0 }: Props) {
 
   // คำนวณราคารวม
   const getSubtotal = () => {
-    if (isGas && item.gasSaleType === 'outright') {
+    if (hasDeposit && item.gasSaleType === 'outright') {
       return outrightPrice * item.quantity
-    } else if (isGas && item.gasSaleType === 'deposit') {
+    } else if (hasDeposit && item.gasSaleType === 'deposit') {
       return (item.product.price + depositAmount) * item.quantity
     }
     return item.product.price * item.quantity
@@ -58,8 +57,8 @@ export function CartItem({ item, index = 0 }: Props) {
 
   // แสดงราคาต่อหน่วย
   const getUnitPrice = () => {
-    if (isGas && item.gasSaleType === 'outright') return outrightPrice
-    if (isGas && item.gasSaleType === 'deposit') return item.product.price + depositAmount
+    if (hasDeposit && item.gasSaleType === 'outright') return outrightPrice
+    if (hasDeposit && item.gasSaleType === 'deposit') return item.product.price + depositAmount
     return item.product.price
   }
 
@@ -72,8 +71,12 @@ export function CartItem({ item, index = 0 }: Props) {
     >
       {/* Row 1: ชื่อสินค้า (เต็มความกว้าง) */}
       <div className="flex items-center gap-2 mb-2">
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${categoryColors[item.product.category]}`}>
-          <Icon size={18} />
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${categoryConfig.light_color} ${categoryConfig.text_color}`}>
+          {categoryConfig.icon ? (
+            <span className="text-base">{categoryConfig.icon}</span>
+          ) : (
+            <FallbackIcon size={18} />
+          )}
         </div>
         <p className="font-semibold text-gray-800 flex-1">{item.product.name}</p>
       </div>
@@ -105,16 +108,16 @@ export function CartItem({ item, index = 0 }: Props) {
         {/* Subtotal */}
         <div className="text-right min-w-[70px]">
           <span className={`font-bold text-lg ${
-            isGas && item.gasSaleType === 'outright' ? 'text-purple-600' :
-            isGas && item.gasSaleType === 'deposit' ? 'text-orange-600' : 'text-gray-800'
+            hasDeposit && item.gasSaleType === 'outright' ? 'text-purple-600' :
+            hasDeposit && item.gasSaleType === 'deposit' ? 'text-orange-600' : 'text-gray-800'
           }`}>
             ฿{getSubtotal().toLocaleString()}
           </span>
         </div>
       </div>
 
-      {/* Row 3: Gas Sale Type Toggle */}
-      {isGas && (
+      {/* Row 3: Deposit Sale Type Toggle */}
+      {hasDeposit && (
         <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
           <button
             onClick={() => updateGasSaleType(item.product.id, 'exchange')}
