@@ -204,15 +204,6 @@ export function ProductCard({ product, index = 0 }: Props) {
         <div className="flex flex-col items-center">
           <span className="text-lg font-bold text-gray-900">฿{product.price}</span>
           <span className="text-xs text-gray-500 font-medium">/{product.unit}</span>
-          {product.cost && product.cost > 0 && (
-            <span className={`text-[10px] font-medium mt-0.5 px-1.5 py-0.5 rounded ${
-              ((product.price - product.cost) / product.price) * 100 >= 30 
-                ? 'bg-green-100 text-green-700' 
-                : 'bg-orange-100 text-orange-700'
-            }`}>
-              {(((product.price - product.cost) / product.price) * 100).toFixed(0)}% กำไร
-            </span>
-          )}
         </div>
 
         {/* Out of stock overlay */}
