@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { X, Check, Banknote, Loader2, Users, Star, Search, Wallet, FileText, UserPlus, Phone } from 'lucide-react'
+import { X, Check, Banknote, Loader2, Users, Star, Search, Wallet, FileText, UserPlus, Phone, Tag } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { validatePayment, addQuickAmount } from '../lib/payment'
 import { supabase } from '../lib/supabase'
-import { Customer } from '../types'
+import { Customer, Discount } from '../types'
 import { useToast } from './Toast'
+import { LoyaltySystem } from '../lib/loyaltySystem'
+import { DiscountEngine } from '../lib/discountEngine'
 
 interface Props {
   isOpen: boolean
@@ -21,8 +23,6 @@ const paymentMethods = [
 ]
 
 const quickAmounts = [20, 50, 100, 500, 1000]
-const POINTS_PER_BAHT = 1
-const BAHT_PER_POINT = 1
 
 export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
@@ -39,17 +39,27 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
   const [isAddingCustomer, setIsAddingCustomer] = useState(false)
-  const { getTotal, getDepositTotal, completeSale } = useStore()
+  const [discounts, setDiscounts] = useState<Discount[]>([])
+  const [selectedDiscount, setSelectedDiscount] = useState<Discount | null>(null)
+  const [showDiscountPicker, setShowDiscountPicker] = useState(false)
+  const { getTotal, getDepositTotal, completeSale, cart } = useStore()
   const { showToast } = useToast()
   
   const baseTotal = getTotal()
   const depositTotal = getDepositTotal()
-  const pointsDiscount = pointsToUse * BAHT_PER_POINT
-  const total = Math.max(0, baseTotal + depositTotal - pointsDiscount)
+  const pointsDiscount = LoyaltySystem.calculatePointsDiscount(pointsToUse)
+  
+  // Calculate discount amount from selected discount
+  const promoDiscount = selectedDiscount 
+    ? DiscountEngine.calculateDiscount(selectedDiscount, baseTotal, cart).discountAmount 
+    : 0
+  
+  const total = Math.max(0, baseTotal + depositTotal - pointsDiscount - promoDiscount)
 
   useEffect(() => {
     if (isOpen) {
       fetchCustomers()
+      fetchDiscounts()
     }
   }, [isOpen])
 
@@ -61,11 +71,23 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
     if (data) setCustomers(data)
   }
 
+  const fetchDiscounts = async () => {
+    const { data } = await supabase
+      .from('discounts')
+      .select('*')
+      .eq('is_active', true)
+      .order('name')
+    if (data) setDiscounts(data)
+  }
+
+  // Get applicable discounts for current cart
+  const applicableDiscounts = DiscountEngine.getApplicableDiscounts(discounts, baseTotal, cart)
+
   if (!isOpen) return null
 
   const paymentAmount = parseInt(payment) || 0
   const validation = validatePayment(paymentAmount, total)
-  const pointsEarned = Math.floor(total * POINTS_PER_BAHT)
+  const pointsEarned = LoyaltySystem.calculatePointsEarned(total)
 
   // For transfer/credit, payment is exact amount
   const effectivePayment = paymentMethod === 'cash' ? paymentAmount : total
@@ -78,9 +100,15 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
     setIsProcessing(true)
     setPaymentError(null)
     try {
+      // Total discount = points discount + promo discount
+      const totalDiscountAmount = pointsDiscount + promoDiscount
+      
       const sale = await completeSale(effectivePayment, {
         customerId: selectedCustomer?.id,
-        discountAmount: pointsDiscount,
+        customerName: selectedCustomer?.name,
+        discountAmount: totalDiscountAmount,
+        discountId: selectedDiscount?.id,
+        discountName: selectedDiscount?.name,
         pointsUsed: pointsToUse,
         pointsEarned,
         paymentMethod,
@@ -88,17 +116,14 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
       })
       
       if (sale) {
-        // Update customer points
+        // Update customer points using LoyaltySystem
         if (selectedCustomer) {
-          const newPoints = selectedCustomer.points - pointsToUse + pointsEarned
-          await supabase
-            .from('customers')
-            .update({
-              points: newPoints,
-              total_spent: selectedCustomer.total_spent + total,
-              visit_count: selectedCustomer.visit_count + 1,
-            })
-            .eq('id', selectedCustomer.id)
+          await LoyaltySystem.updateCustomerAfterSale(
+            selectedCustomer.id,
+            pointsToUse,
+            pointsEarned,
+            total
+          )
         }
         
         onSuccess(effectiveChange)
@@ -120,6 +145,7 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
     setSelectedCustomer(null)
     setPointsToUse(0)
     setSearchQuery('')
+    setSelectedDiscount(null)
   }
 
   const handleQuickAmount = (amount: number) => {
@@ -270,6 +296,43 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
           </div>
         )}
 
+        {/* Discount Selection */}
+        <div className="mb-4">
+          {selectedDiscount ? (
+            <div className="bg-green-50 rounded-lg p-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Tag className="text-green-600" size={20} />
+                </div>
+                <div>
+                  <p className="font-medium text-gray-800">{selectedDiscount.name}</p>
+                  <p className="text-sm text-green-600">
+                    {DiscountEngine.getDiscountLabel(selectedDiscount)} (-฿{promoDiscount})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDiscount(null)}
+                className="text-sm text-gray-500"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          ) : applicableDiscounts.length > 0 ? (
+            <button
+              onClick={() => setShowDiscountPicker(true)}
+              className="w-full py-3 border border-dashed border-green-300 bg-green-50 rounded-lg flex items-center justify-center gap-2 text-green-700 hover:bg-green-100 transition-colors"
+            >
+              <Tag size={20} />
+              มีโปรโมชั่น {applicableDiscounts.length} รายการ
+            </button>
+          ) : discounts.length > 0 ? (
+            <div className="text-center py-2 text-sm text-gray-400">
+              ไม่มีโปรโมชั่นที่ใช้ได้กับยอดนี้
+            </div>
+          ) : null}
+        </div>
+
         {/* Payment Method Selection */}
         <div className="mb-4">
           <label className="text-sm text-gray-600 mb-2 block">วิธีชำระเงิน</label>
@@ -300,12 +363,18 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
           <p className="text-sm text-gray-500 mb-1">ยอดที่ต้องชำระ</p>
           <div className="flex items-baseline gap-2">
             <p className="text-2xl font-semibold text-gray-800">฿{total.toLocaleString()}</p>
-            {(pointsDiscount > 0 || depositTotal > 0) && (
-              <span className="text-sm text-gray-400 line-through">฿{baseTotal}</span>
+            {(pointsDiscount > 0 || promoDiscount > 0 || depositTotal > 0) && (
+              <span className="text-sm text-gray-400 line-through">฿{baseTotal + depositTotal}</span>
             )}
           </div>
           {depositTotal > 0 && (
             <p className="text-xs text-orange-600 mt-1">รวมค่ามัดจำถัง ฿{depositTotal.toLocaleString()}</p>
+          )}
+          {promoDiscount > 0 && (
+            <p className="text-xs text-green-600 mt-1">ส่วนลดโปรโมชั่น -฿{promoDiscount.toLocaleString()}</p>
+          )}
+          {pointsDiscount > 0 && (
+            <p className="text-xs text-yellow-600 mt-1">ใช้แต้ม -฿{pointsDiscount.toLocaleString()}</p>
           )}
           {selectedCustomer && (
             <p className="text-xs text-gray-500 mt-1">จะได้รับ {pointsEarned} แต้ม</p>
@@ -575,6 +644,62 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
                 )}
                 บันทึก
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discount Picker Modal */}
+      {showDiscountPicker && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl w-full max-w-sm max-h-[80vh] overflow-hidden animate-scale-in">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                <Tag size={18} className="text-green-600" />
+                เลือกโปรโมชั่น
+              </h3>
+              <button
+                onClick={() => setShowDiscountPicker(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="overflow-auto max-h-[60vh]">
+              {applicableDiscounts.length === 0 ? (
+                <div className="p-6 text-center">
+                  <Tag className="mx-auto text-gray-300 mb-2" size={36} />
+                  <p className="text-gray-400 text-sm">ไม่มีโปรโมชั่นที่ใช้ได้</p>
+                </div>
+              ) : (
+                applicableDiscounts.map((discount) => {
+                  const calculation = DiscountEngine.calculateDiscount(discount, baseTotal, cart)
+                  return (
+                    <button
+                      key={discount.id}
+                      onClick={() => {
+                        setSelectedDiscount(discount)
+                        setShowDiscountPicker(false)
+                      }}
+                      className="w-full p-4 border-b border-gray-50 hover:bg-green-50 text-left transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-800">{discount.name}</p>
+                          <p className="text-sm text-green-600">{calculation.description}</p>
+                          {discount.min_purchase > 0 && (
+                            <p className="text-xs text-gray-400 mt-1">ขั้นต่ำ ฿{discount.min_purchase}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-green-600">-฿{calculation.discountAmount}</p>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>

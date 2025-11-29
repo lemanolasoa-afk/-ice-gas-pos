@@ -4,6 +4,16 @@ import { CartItem, Product, Sale, SaleItem, QueuedOperation, GasSaleType } from 
 import { supabase } from '../lib/supabase'
 import { NotificationTriggers } from '../lib/notificationTriggers'
 
+// Helper to get current user from auth store
+const getCurrentUserId = (): string | null => {
+  try {
+    const authState = JSON.parse(localStorage.getItem('ice-gas-pos-auth') || '{}')
+    return authState?.state?.user?.id || null
+  } catch {
+    return null
+  }
+}
+
 interface POSStore {
   // State
   products: Product[]
@@ -32,7 +42,10 @@ interface POSStore {
   // Sale Actions
   completeSale: (payment: number, options?: {
     customerId?: string
+    customerName?: string
     discountAmount?: number
+    discountId?: string
+    discountName?: string
     pointsUsed?: number
     pointsEarned?: number
     paymentMethod?: 'cash' | 'transfer' | 'credit'
@@ -216,14 +229,20 @@ export const useStore = create<POSStore>()(
       clearCart: () => set({ cart: [] }),
 
       getTotal: () => {
-        return get().cart.reduce(
-          (sum, item) => sum + item.product.price * item.quantity,
-          0
-        )
+        return get().cart.reduce((sum, item) => {
+          // สำหรับแก๊สซื้อขาด ใช้ outright_price
+          if (item.product.category === 'gas' && item.gasSaleType === 'outright') {
+            const outrightPrice = item.product.outright_price || 
+              (item.product.price + (item.product.deposit_amount || 0) + 500)
+            return sum + outrightPrice * item.quantity
+          }
+          return sum + item.product.price * item.quantity
+        }, 0)
       },
 
       getDepositTotal: () => {
         return get().cart.reduce((sum, item) => {
+          // ซื้อขาดไม่มีมัดจำ
           if (item.product.category === 'gas' && item.gasSaleType === 'deposit') {
             return sum + (item.product.deposit_amount || 0) * item.quantity
           }
@@ -242,15 +261,24 @@ export const useStore = create<POSStore>()(
         if (paymentMethod === 'cash' && payment < total) return null
 
         const cart = get().cart
-        const saleItems: SaleItem[] = cart.map((item) => ({
-          product_id: item.product.id,
-          product_name: item.product.name,
-          price: item.product.price,
-          quantity: item.quantity,
-          subtotal: item.product.price * item.quantity,
-          gas_sale_type: item.gasSaleType,
-          deposit_amount: item.gasSaleType === 'deposit' ? (item.product.deposit_amount || 0) : 0
-        }))
+        const saleItems: SaleItem[] = cart.map((item) => {
+          // คำนวณราคาตาม sale type
+          let price = item.product.price
+          if (item.product.category === 'gas' && item.gasSaleType === 'outright') {
+            price = item.product.outright_price || 
+              (item.product.price + (item.product.deposit_amount || 0) + 500)
+          }
+          
+          return {
+            product_id: item.product.id,
+            product_name: item.product.name,
+            price,
+            quantity: item.quantity,
+            subtotal: price * item.quantity,
+            gas_sale_type: item.gasSaleType,
+            deposit_amount: item.gasSaleType === 'deposit' ? (item.product.deposit_amount || 0) : 0
+          }
+        })
 
         // Generate UUID for sale
         const saleId = crypto.randomUUID()
@@ -315,14 +343,43 @@ export const useStore = create<POSStore>()(
             total: sale.total,
             payment: sale.payment,
             change: sale.change,
+            discount_amount: sale.discount_amount || 0,
+            discount_id: options.discountId || null,
+            discount_name: options.discountName || null,
+            customer_id: sale.customer_id,
+            customer_name: options.customerName || null,
+            points_earned: options.pointsEarned || 0,
+            points_used: options.pointsUsed || 0,
             payment_method: sale.payment_method,
             note: sale.note,
             created_at: sale.timestamp || new Date().toISOString()
           }
 
-          // Deduct stock and update empty_stock for gas cylinders
+          // Deduct stock, update empty_stock, and create stock logs
           for (const item of cart) {
             await get().updateStock(item.product.id, -item.quantity)
+            
+            // Determine reason based on product type and sale type
+            let reason = 'sale'
+            if (item.product.category === 'gas') {
+              if (item.gasSaleType === 'exchange') {
+                reason = 'exchange'
+              } else if (item.gasSaleType === 'outright') {
+                reason = 'outright_sale'
+              } else {
+                reason = 'deposit_sale'
+              }
+            }
+            
+            // Create stock log with user_id
+            await supabase.from('stock_logs').insert({
+              id: `log-${Date.now()}-${item.product.id}`,
+              product_id: item.product.id,
+              change_amount: -item.quantity,
+              reason,
+              note: `ขาย ${item.quantity} ${item.product.unit}`,
+              user_id: getCurrentUserId()
+            })
             
             // สำหรับแก๊ส: ถ้าแลกถัง ให้เพิ่ม empty_stock
             if (item.product.category === 'gas' && item.gasSaleType === 'exchange') {
@@ -364,28 +421,23 @@ export const useStore = create<POSStore>()(
       fetchSales: async () => {
         set({ isLoading: true, error: null })
         try {
+          // Single query with join - much faster than N+1
           const { data: sales, error: salesError } = await supabase
             .from('sales')
-            .select('*')
+            .select(`
+              *,
+              sale_items (*)
+            `)
             .order('timestamp', { ascending: false })
+            .limit(100) // Limit for performance
 
           if (salesError) throw salesError
 
-          // Fetch items for each sale
-          const salesWithItems: Sale[] = await Promise.all(
-            (sales || []).map(async (sale) => {
-              const { data: items } = await supabase
-                .from('sale_items')
-                .select('*')
-                .eq('sale_id', sale.id)
-
-              return {
-                ...sale,
-                created_at: sale.timestamp, // Map timestamp to created_at for interface compatibility
-                items: items || []
-              }
-            })
-          )
+          const salesWithItems: Sale[] = (sales || []).map((sale) => ({
+            ...sale,
+            created_at: sale.timestamp,
+            items: sale.sale_items || []
+          }))
 
           set({ sales: salesWithItems, isLoading: false })
         } catch (err) {

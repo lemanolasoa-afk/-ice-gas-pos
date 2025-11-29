@@ -14,10 +14,12 @@ export interface Product {
   // Gas cylinder specific fields
   empty_stock?: number       // จำนวนถังเปล่า
   deposit_amount?: number    // ค่ามัดจำถัง
+  outright_price?: number    // ราคาซื้อขาด (ซื้อถังไปเลย ไม่ต้องคืน)
+  cost?: number              // ต้นทุน
 }
 
 // Gas sale type - for gas cylinder transactions
-export type GasSaleType = 'exchange' | 'deposit'  // แลกถัง หรือ ซื้อพร้อมมัดจำ
+export type GasSaleType = 'exchange' | 'deposit' | 'outright'  // แลกถัง, ซื้อพร้อมมัดจำ, หรือซื้อขาด
 
 // Cart Item Interface - for shopping cart
 export interface CartItem {
@@ -50,7 +52,10 @@ export interface Sale {
   payment: number
   change: number
   discount_amount?: number
+  discount_id?: string | null
+  discount_name?: string | null  // For display in receipt
   customer_id?: string | null
+  customer_name?: string | null  // For display in receipt
   points_earned?: number
   points_used?: number
   payment_method?: PaymentMethod

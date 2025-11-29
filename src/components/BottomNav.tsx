@@ -15,7 +15,7 @@ const navItems: NavItem[] = [
   { path: '/', icon: Home, label: 'ขาย', permission: 'pos.sell' },
   { path: '/history', icon: History, label: 'ประวัติ', permission: 'history.view' },
   { path: '/products', icon: Package, label: 'สินค้า', permission: 'products.view' },
-  { path: '/settings', icon: Settings, label: 'เพิ่มเติม' }, // No permission required
+  { path: '/settings', icon: Settings, label: 'เพิ่มเติม' },
 ]
 
 export function BottomNav() {
@@ -23,15 +23,14 @@ export function BottomNav() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  // Filter nav items based on user permissions
-  const visibleNavItems = navItems.filter(item => {
+  const visibleNavItems = navItems.filter((item) => {
     if (!item.permission) return true
     return hasPermission(user?.role, item.permission)
   })
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-2 pb-safe">
-      <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 pb-safe shadow-lg">
+      <div className="flex justify-around items-center h-18 max-w-lg mx-auto py-2">
         {visibleNavItems.map((item) => {
           const Icon = item.icon
           const isActive = location.pathname === item.path
@@ -39,21 +38,12 @@ export function BottomNav() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg transition-colors ${
-                isActive 
-                  ? 'text-gray-800' 
-                  : 'text-gray-400 hover:text-gray-600'
+              className={`relative flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${
+                isActive ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-gray-100' : ''}`}>
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-              </div>
-              <span className={`text-[10px] font-medium ${isActive ? 'text-gray-800' : ''}`}>
-                {item.label}
-              </span>
-              {isActive && (
-                <span className="absolute -bottom-1 w-4 h-0.5 bg-gray-800 rounded-full" />
-              )}
+              <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+              <span className={`text-xs font-semibold ${isActive ? 'text-white' : ''}`}>{item.label}</span>
             </button>
           )
         })}

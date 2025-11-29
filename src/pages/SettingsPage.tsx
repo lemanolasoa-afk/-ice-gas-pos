@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import {
   Store, Trash2, Download, Info, Package, BarChart3, Users,
   Tag, PackagePlus, ChevronRight, TrendingUp, ShoppingCart,
-  LogOut, History, DollarSign, UserCog, Smartphone, AlertCircle, Bell
+  LogOut, History, DollarSign, UserCog, Smartphone, AlertCircle, Bell,
+  Database
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
 import { useToast } from '../components/Toast'
 import { hasPermission, Permission } from '../lib/permissions'
 import { NotificationSettings } from '../components/NotificationSettings'
+import { BackupManager } from '../lib/backupManager'
 
 export function SettingsPage() {
   const navigate = useNavigate()
@@ -20,6 +22,7 @@ export function SettingsPage() {
   const { user, logout } = useAuthStore()
   const { showToast } = useToast()
   const [isInstalled, setIsInstalled] = useState(false)
+  const [showBackupReminder, setShowBackupReminder] = useState(false)
 
   useEffect(() => {
     fetchSales()
@@ -40,6 +43,9 @@ export function SettingsPage() {
     }
     
     checkInstallStatus()
+    
+    // Check backup reminder
+    setShowBackupReminder(BackupManager.shouldShowBackupReminder())
   }, [fetchSales, fetchProducts])
 
   const handleClearData = () => {
@@ -47,28 +53,6 @@ export function SettingsPage() {
       localStorage.removeItem('ice-gas-pos-storage')
       window.location.reload()
     }
-  }
-
-  const handleExport = async () => {
-    await fetchSales()
-    const currentSales = useStore.getState().sales
-
-    const exportData = {
-      exportDate: new Date().toISOString(),
-      totalSales: currentSales.length,
-      totalRevenue: currentSales.reduce((sum, s) => sum + s.total, 0),
-      sales: currentSales,
-    }
-
-    const data = JSON.stringify(exportData, null, 2)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `sales-${new Date().toISOString().split('T')[0]}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    showToast('success', 'ส่งออกข้อมูลสำเร็จ', 2000)
   }
 
   // Calculate stats
@@ -105,6 +89,7 @@ export function SettingsPage() {
     { icon: Users, label: 'ลูกค้าสมาชิก', desc: 'ระบบสะสมแต้ม', path: '/customers', color: 'bg-orange-500', permission: 'customers.view' },
     { icon: Tag, label: 'โปรโมชั่น/ส่วนลด', desc: 'จัดการส่วนลด', path: '/discounts', color: 'bg-pink-500', permission: 'discounts.view' },
     { icon: UserCog, label: 'จัดการผู้ใช้', desc: 'เพิ่ม/ลบพนักงาน', path: '/users', color: 'bg-indigo-500', permission: 'users.manage' },
+    { icon: Database, label: 'สำรองข้อมูล', desc: 'Backup & Import', path: '/backup', color: 'bg-cyan-500', permission: 'settings.export' },
   ]
 
   // Filter menu items based on user permissions
@@ -145,6 +130,27 @@ export function SettingsPage() {
             </button>
           </div>
         </div>
+
+        {/* Backup Reminder */}
+        {showBackupReminder && hasPermission(user?.role, 'settings.export') && (
+          <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <Database className="text-cyan-600 flex-shrink-0 mt-0.5" size={20} />
+              <div className="flex-1">
+                <h3 className="font-medium text-cyan-900 mb-1">แนะนำให้สำรองข้อมูล</h3>
+                <p className="text-sm text-cyan-800 mb-2">
+                  ควรสำรองข้อมูลเป็นประจำเพื่อป้องกันข้อมูลสูญหาย
+                </p>
+                <button
+                  onClick={() => navigate('/backup')}
+                  className="px-3 py-1.5 bg-cyan-600 text-white text-sm rounded-lg"
+                >
+                  สำรองข้อมูล
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-3">
@@ -193,14 +199,15 @@ export function SettingsPage() {
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             {hasPermission(user?.role, 'settings.export') && (
               <button
-                onClick={handleExport}
+                onClick={() => navigate('/backup')}
                 className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 border-b border-gray-50"
               >
                 <Download className="text-gray-600" size={20} />
                 <div className="text-left">
-                  <p className="font-medium text-gray-800">ส่งออกข้อมูล</p>
-                  <p className="text-sm text-gray-500">ดาวน์โหลดประวัติการขายเป็น JSON</p>
+                  <p className="font-medium text-gray-800">สำรอง/ส่งออกข้อมูล</p>
+                  <p className="text-sm text-gray-500">Backup, Export, Import</p>
                 </div>
+                <ChevronRight className="text-gray-300 ml-auto" size={18} />
               </button>
             )}
 

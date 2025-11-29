@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   TrendingUp, ShoppingCart, Package, Users, Clock,
-  ArrowRight, AlertTriangle, Star, BarChart3
+  ArrowRight, AlertTriangle, Star, BarChart3, DollarSign
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
@@ -10,46 +10,55 @@ import { Header } from '../components/Header'
 import { StatCard } from '../components/StatCard'
 import { supabase } from '../lib/supabase'
 import { hasPermission } from '../lib/permissions'
+import { ReportGenerator } from '../lib/reportGenerator'
 
 export function DashboardPage() {
   const navigate = useNavigate()
-  const { sales, products, fetchSales, fetchProducts } = useStore()
+  const sales = useStore((s) => s.sales)
+  const products = useStore((s) => s.products)
+  const fetchSales = useStore((s) => s.fetchSales)
+  const fetchProducts = useStore((s) => s.fetchProducts)
   const { user } = useAuthStore()
   const [customerCount, setCustomerCount] = useState(0)
+  const [todayProfit, setTodayProfit] = useState<{ profit: number; margin: number } | null>(null)
 
   useEffect(() => {
     fetchSales()
     fetchProducts()
-    fetchCustomerCount()
+    // Fetch customer count
+    supabase.from('customers').select('*', { count: 'exact', head: true })
+      .then(({ count }) => setCustomerCount(count || 0))
+    
+    // Fetch today's profit
+    ReportGenerator.getTodaySummary()
+      .then(summary => setTodayProfit({ profit: summary.profit, margin: summary.profitMargin }))
+      .catch(err => console.error('Failed to fetch profit:', err))
   }, [fetchSales, fetchProducts])
 
-  const fetchCustomerCount = async () => {
-    const { count } = await supabase.from('customers').select('*', { count: 'exact', head: true })
-    setCustomerCount(count || 0)
-  }
+  // Memoized calculations for performance
+  const { todaySales, todayRevenue, lowStockProducts, recentSales, topProducts } = useMemo(() => {
+    const today = new Date().toDateString()
+    const todaySales = sales.filter((s) => new Date(s.created_at).toDateString() === today)
+    const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0)
+    const lowStockProducts = products.filter((p) => p.stock <= p.low_stock_threshold)
+    const recentSales = sales.slice(0, 5)
 
-  // Calculate stats
-  const today = new Date().toDateString()
-  const todaySales = sales.filter((s) => new Date(s.created_at).toDateString() === today)
-  const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0)
-  const lowStockProducts = products.filter((p) => p.stock <= p.low_stock_threshold)
-
-  // Recent sales (last 5)
-  const recentSales = sales.slice(0, 5)
-
-  // Top selling products today
-  const productSales: Record<string, { name: string; qty: number }> = {}
-  todaySales.forEach((sale) => {
-    sale.items.forEach((item) => {
-      if (!productSales[item.product_id]) {
-        productSales[item.product_id] = { name: item.product_name, qty: 0 }
-      }
-      productSales[item.product_id].qty += item.quantity
+    // Top selling products today
+    const productSales: Record<string, { name: string; qty: number }> = {}
+    todaySales.forEach((sale) => {
+      sale.items.forEach((item) => {
+        if (!productSales[item.product_id]) {
+          productSales[item.product_id] = { name: item.product_name, qty: 0 }
+        }
+        productSales[item.product_id].qty += item.quantity
+      })
     })
-  })
-  const topProducts = Object.entries(productSales)
-    .sort((a, b) => b[1].qty - a[1].qty)
-    .slice(0, 3)
+    const topProducts = Object.entries(productSales)
+      .sort((a, b) => b[1].qty - a[1].qty)
+      .slice(0, 3)
+
+    return { todaySales, todayRevenue, lowStockProducts, recentSales, topProducts }
+  }, [sales, products])
 
   const formatTime = (date: string) => {
     return new Date(date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
@@ -78,15 +87,15 @@ export function DashboardPage() {
             color="green"
           />
           <StatCard
-            icon={ShoppingCart}
-            value={todaySales.length}
-            label="ออเดอร์วันนี้"
+            icon={DollarSign}
+            value={todayProfit ? `฿${todayProfit.profit.toLocaleString()}` : '...'}
+            label={`กำไรวันนี้${todayProfit ? ` (${todayProfit.margin.toFixed(0)}%)` : ''}`}
             color="blue"
           />
           <StatCard
-            icon={Package}
-            value={products.length}
-            label="สินค้าทั้งหมด"
+            icon={ShoppingCart}
+            value={todaySales.length}
+            label="ออเดอร์วันนี้"
             color="purple"
           />
           <StatCard
@@ -115,7 +124,7 @@ export function DashboardPage() {
         )}
 
         {/* Quick Actions */}
-        <div className={`grid gap-3 ${hasPermission(user?.role, 'stock.receive') || hasPermission(user?.role, 'reports.view') ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => navigate('/')}
             className="bg-gray-800 text-white rounded-xl p-4 flex flex-col items-center gap-2"
@@ -132,16 +141,47 @@ export function DashboardPage() {
               <span className="font-medium">รับสินค้า</span>
             </button>
           )}
-          {hasPermission(user?.role, 'reports.view') && (
-            <button
-              onClick={() => navigate('/reports')}
-              className="bg-white border border-gray-200 text-gray-800 rounded-xl p-4 flex flex-col items-center gap-2"
-            >
-              <BarChart3 size={24} />
-              <span className="font-medium">รายงาน</span>
-            </button>
-          )}
         </div>
+
+        {/* Report Links */}
+        {hasPermission(user?.role, 'reports.view') && (
+          <div className="bg-white rounded-xl p-4 border border-gray-100">
+            <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
+              <BarChart3 size={16} className="text-gray-400" />
+              รายงาน
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => navigate('/reports')}
+                className="bg-blue-50 text-blue-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+              >
+                <BarChart3 size={16} />
+                ยอดขาย
+              </button>
+              <button
+                onClick={() => navigate('/profit')}
+                className="bg-green-50 text-green-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+              >
+                <DollarSign size={16} />
+                กำไร
+              </button>
+              <button
+                onClick={() => navigate('/stock-report')}
+                className="bg-purple-50 text-purple-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+              >
+                <Package size={16} />
+                สต็อก
+              </button>
+              <button
+                onClick={() => navigate('/customer-report')}
+                className="bg-orange-50 text-orange-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+              >
+                <Users size={16} />
+                ลูกค้า
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Top Products Today */}
         {topProducts.length > 0 && (

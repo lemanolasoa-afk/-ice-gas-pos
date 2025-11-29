@@ -228,7 +228,7 @@ export function ProductsPage() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
             <p className="text-xl font-semibold text-gray-800">{products.length}</p>
             <p className="text-xs text-gray-500">สินค้าทั้งหมด</p>
@@ -240,7 +240,15 @@ export function ProductsPage() {
             <p className="text-xs text-gray-500">สต็อกรวม</p>
           </div>
           <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
-            <p className="text-xl font-semibold text-gray-800">{lowStockProducts.length}</p>
+            <p className="text-xl font-semibold text-purple-600">
+              ฿{products.reduce((sum, p) => sum + (p.stock * (p.cost || 0)), 0).toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-500">มูลค่าสต็อก</p>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center border border-gray-100">
+            <p className={`text-xl font-semibold ${lowStockProducts.length > 0 ? 'text-orange-500' : 'text-green-500'}`}>
+              {lowStockProducts.length}
+            </p>
             <p className="text-xs text-gray-500">ใกล้หมด</p>
           </div>
         </div>

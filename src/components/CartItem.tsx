@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Minus, Plus, Trash2, Snowflake, Flame, Droplets, RefreshCw, Banknote } from 'lucide-react'
+import { Minus, Plus, Trash2, Snowflake, Flame, Droplets, RefreshCw, Banknote, Check } from 'lucide-react'
 import { CartItem as CartItemType } from '../types'
 import { useStore } from '../store/useStore'
 
@@ -27,8 +27,10 @@ export function CartItem({ item, index = 0 }: Props) {
   
   const isGas = item.product.category === 'gas'
   const depositAmount = item.product.deposit_amount || 0
+  const outrightPrice = item.product.outright_price || (item.product.price + depositAmount + 500)
 
   const handleRemove = () => {
+    if (isRemoving) return // ป้องกันกดซ้ำ
     setIsRemoving(true)
     setTimeout(() => {
       removeFromCart(item.product.id)
@@ -36,94 +38,119 @@ export function CartItem({ item, index = 0 }: Props) {
   }
 
   const handleDecrease = () => {
-    if (item.quantity === 1) {
+    if (isRemoving) return // ป้องกันกดซ้ำขณะกำลังลบ
+    if (item.quantity <= 1) {
       handleRemove()
     } else {
       updateQuantity(item.product.id, item.quantity - 1)
     }
   }
 
+  // คำนวณราคารวม
+  const getSubtotal = () => {
+    if (isGas && item.gasSaleType === 'outright') {
+      return outrightPrice * item.quantity
+    } else if (isGas && item.gasSaleType === 'deposit') {
+      return (item.product.price + depositAmount) * item.quantity
+    }
+    return item.product.price * item.quantity
+  }
+
+  // แสดงราคาต่อหน่วย
+  const getUnitPrice = () => {
+    if (isGas && item.gasSaleType === 'outright') return outrightPrice
+    if (isGas && item.gasSaleType === 'deposit') return item.product.price + depositAmount
+    return item.product.price
+  }
+
   return (
     <div
       style={{ animationDelay: `${index * 50}ms` }}
-      className={`flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-100 transition-all duration-200 stagger-item
+      className={`bg-white p-3 rounded-xl border border-gray-100 transition-all duration-200 stagger-item
         ${isRemoving ? 'opacity-0 scale-95 -translate-x-4' : 'opacity-100'}
       `}
     >
-      {/* Category Icon */}
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${categoryColors[item.product.category]}`}>
-        <Icon size={20} />
+      {/* Row 1: ชื่อสินค้า (เต็มความกว้าง) */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${categoryColors[item.product.category]}`}>
+          <Icon size={18} />
+        </div>
+        <p className="font-semibold text-gray-800 flex-1">{item.product.name}</p>
       </div>
 
-      {/* Product Info */}
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-800 truncate text-sm">{item.product.name}</p>
-        <p className="text-xs text-gray-400">
-          ฿{item.product.price.toLocaleString()} × {item.quantity}
-          {isGas && item.gasSaleType === 'deposit' && depositAmount > 0 && (
-            <span className="text-orange-500"> +มัดจำ ฿{depositAmount}</span>
-          )}
-        </p>
-        
-        {/* Gas Sale Type Toggle */}
-        {isGas && (
-          <div className="flex gap-1 mt-1.5">
-            <button
-              onClick={() => updateGasSaleType(item.product.id, 'exchange')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
-                item.gasSaleType === 'exchange'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-500'
-              }`}
-            >
-              <RefreshCw size={10} />
-              แลกถัง
-            </button>
-            <button
-              onClick={() => updateGasSaleType(item.product.id, 'deposit')}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
-                item.gasSaleType === 'deposit'
-                  ? 'bg-orange-100 text-orange-700'
-                  : 'bg-gray-100 text-gray-500'
-              }`}
-            >
-              <Banknote size={10} />
-              มัดจำ
-            </button>
-          </div>
-        )}
+      {/* Row 2: ราคา + จำนวน + รวม */}
+      <div className="flex items-center justify-between">
+        {/* ราคาต่อหน่วย */}
+        <div className="text-sm text-gray-500">
+          ฿{getUnitPrice().toLocaleString()} × {item.quantity}
+        </div>
+
+        {/* Quantity Controls */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleDecrease}
+            className="w-9 h-9 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            {item.quantity === 1 ? <Trash2 size={16} className="text-red-500" /> : <Minus size={16} />}
+          </button>
+          <span className="w-8 text-center font-bold text-gray-800">{item.quantity}</span>
+          <button
+            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+            className="w-9 h-9 flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+
+        {/* Subtotal */}
+        <div className="text-right min-w-[70px]">
+          <span className={`font-bold text-lg ${
+            isGas && item.gasSaleType === 'outright' ? 'text-purple-600' :
+            isGas && item.gasSaleType === 'deposit' ? 'text-orange-600' : 'text-gray-800'
+          }`}>
+            ฿{getSubtotal().toLocaleString()}
+          </span>
+        </div>
       </div>
 
-      {/* Quantity Controls */}
-      <div className="flex items-center gap-1.5">
-        <button
-          onClick={handleDecrease}
-          className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-        >
-          {item.quantity === 1 ? <Trash2 size={14} className="text-gray-500" /> : <Minus size={14} />}
-        </button>
-
-        <span className="w-8 text-center font-semibold text-gray-800">{item.quantity}</span>
-
-        <button
-          onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-          className="w-8 h-8 flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors"
-        >
-          <Plus size={14} />
-        </button>
-      </div>
-
-      {/* Subtotal */}
-      <div className="w-20 text-right">
-        <span className="font-semibold text-gray-800 text-sm">
-          ฿{(item.product.price * item.quantity).toLocaleString()}
-        </span>
-        {isGas && item.gasSaleType === 'deposit' && depositAmount > 0 && (
-          <p className="text-xs text-orange-500">
-            +฿{(depositAmount * item.quantity).toLocaleString()}
-          </p>
-        )}
-      </div>
+      {/* Row 3: Gas Sale Type Toggle */}
+      {isGas && (
+        <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+          <button
+            onClick={() => updateGasSaleType(item.product.id, 'exchange')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              item.gasSaleType === 'exchange'
+                ? 'bg-green-500 text-white shadow-sm'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <RefreshCw size={14} />
+            แลกถัง
+          </button>
+          <button
+            onClick={() => updateGasSaleType(item.product.id, 'deposit')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              item.gasSaleType === 'deposit'
+                ? 'bg-orange-500 text-white shadow-sm'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Banknote size={14} />
+            ค้างถัง
+          </button>
+          <button
+            onClick={() => updateGasSaleType(item.product.id, 'outright')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              item.gasSaleType === 'outright'
+                ? 'bg-purple-500 text-white shadow-sm'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Check size={14} />
+            ซื้อขาด
+          </button>
+        </div>
+      )}
     </div>
   )
 }

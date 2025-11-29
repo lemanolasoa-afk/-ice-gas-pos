@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Receipt, Calendar, Banknote, Wallet, FileText, ChevronRight } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Header } from '../components/Header'
@@ -13,41 +13,42 @@ const paymentMethodLabels = {
   credit: { label: 'วางบิล', icon: FileText, color: 'text-gray-600 bg-gray-100' },
 }
 
+// Memoized date formatters
+const formatTime = (date: string) => 
+  new Date(date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+
+const formatDate = (date: string) => 
+  new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+
 export function HistoryPage() {
   const sales = useStore((s) => s.sales)
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const fetchSales = useStore((s) => s.fetchSales)
   const isLoading = useStore((s) => s.isLoading)
   const error = useStore((s) => s.error)
   const clearError = useStore((s) => s.clearError)
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
 
   useEffect(() => {
     fetchSales()
   }, [fetchSales])
 
-  const formatTime = (date: string) => {
-    return new Date(date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-  }
+  // Memoized calculations
+  const { todaySales, todayTotal, groupedSales } = useMemo(() => {
+    const today = new Date().toDateString()
+    const todaySales = sales.filter((sale) => new Date(sale.created_at).toDateString() === today)
+    const todayTotal = todaySales.reduce((sum, sale) => sum + sale.total, 0)
+    
+    const groupedSales = sales.reduce((groups, sale) => {
+      const date = new Date(sale.created_at).toDateString()
+      if (!groups[date]) groups[date] = []
+      groups[date].push(sale)
+      return groups
+    }, {} as Record<string, Sale[]>)
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
-  }
+    return { todaySales, todayTotal, groupedSales }
+  }, [sales])
 
-  const todaySales = sales.filter((sale) => {
-    const today = new Date()
-    const saleDate = new Date(sale.created_at)
-    return saleDate.toDateString() === today.toDateString()
-  })
-
-  const todayTotal = todaySales.reduce((sum, sale) => sum + sale.total, 0)
-
-  // Group sales by date
-  const groupedSales = sales.reduce((groups, sale) => {
-    const date = new Date(sale.created_at).toDateString()
-    if (!groups[date]) groups[date] = []
-    groups[date].push(sale)
-    return groups
-  }, {} as Record<string, Sale[]>)
+  const handleSelectSale = useCallback((sale: Sale) => setSelectedSale(sale), [])
 
   return (
     <div className="min-h-screen pb-20 bg-gray-50">
@@ -111,7 +112,7 @@ export function HistoryPage() {
                       return (
                         <button
                           key={sale.id}
-                          onClick={() => setSelectedSale(sale)}
+                          onClick={() => handleSelectSale(sale)}
                           style={{ animationDelay: `${idx * 30}ms` }}
                           className="w-full bg-white rounded-lg p-3 border border-gray-100 text-left stagger-item hover:bg-gray-50"
                         >

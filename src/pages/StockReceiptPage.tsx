@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { PackagePlus, Plus, Calendar, Package, RefreshCw, Flame } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useStore } from '../store/useStore'
+import { useAuthStore } from '../store/authStore'
 import { StockReceipt, Product } from '../types'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { useToast } from '../components/Toast'
@@ -10,6 +11,7 @@ type ReceiptType = 'normal' | 'gas_refill'
 
 export function StockReceiptPage() {
   const { products, fetchProducts, updateStock } = useStore()
+  const { user } = useAuthStore()
   const [receipts, setReceipts] = useState<StockReceipt[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -62,6 +64,16 @@ export function StockReceiptPage() {
     await supabase.from('stock_receipts').insert(receipt)
     await updateStock(data.product_id, data.quantity)
     
+    // บันทึก stock log พร้อม user_id
+    await supabase.from('stock_logs').insert({
+      id: `log-${Date.now()}`,
+      product_id: data.product_id,
+      change_amount: data.quantity,
+      reason: 'receipt',
+      note: data.note || `รับสินค้า ${data.quantity} ${product.unit}`,
+      user_id: user?.id || null
+    })
+    
     showToast('success', `รับสินค้า ${product.name} จำนวน ${data.quantity} ${product.unit}`)
     setShowForm(false)
     fetchReceipts()
@@ -106,13 +118,14 @@ export function StockReceiptPage() {
       })
       .eq('id', data.product_id)
     
-    // บันทึก stock log
+    // บันทึก stock log พร้อม user_id
     await supabase.from('stock_logs').insert({
       id: `log-${Date.now()}`,
       product_id: data.product_id,
       change_amount: data.quantity,
       reason: 'refill',
       note: `ส่งถังเปล่า ${data.quantity} ถังไปเติม รับถังเต็มกลับมา`,
+      user_id: user?.id || null
     })
     
     showToast('success', `เติมแก๊ส ${product.name} จำนวน ${data.quantity} ถัง`)
@@ -179,6 +192,16 @@ export function StockReceiptPage() {
             </button>
           )}
         </div>
+
+        {/* Link to Cylinder Return */}
+        {gasProducts.length > 0 && (
+          <a
+            href="/cylinder-return"
+            className="block w-full py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-xl font-medium text-center hover:bg-orange-50 transition-colors"
+          >
+            🔄 รับคืนถังแก๊ส (คืนเงินมัดจำ)
+          </a>
+        )}
 
         {/* Recent Receipts */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">

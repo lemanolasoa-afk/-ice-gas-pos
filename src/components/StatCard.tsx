@@ -10,51 +10,57 @@ interface Props {
   index?: number
 }
 
-const colorClasses = {
-  blue: 'bg-white',
-  green: 'bg-white',
-  purple: 'bg-white',
-  orange: 'bg-white',
-  red: 'bg-white',
-  amber: 'bg-white',
+const colorConfig = {
+  blue: { bg: 'bg-blue-50', icon: 'bg-blue-100 text-blue-600', text: 'text-blue-700' },
+  green: { bg: 'bg-green-50', icon: 'bg-green-100 text-green-600', text: 'text-green-700' },
+  purple: { bg: 'bg-purple-50', icon: 'bg-purple-100 text-purple-600', text: 'text-purple-700' },
+  orange: { bg: 'bg-orange-50', icon: 'bg-orange-100 text-orange-600', text: 'text-orange-700' },
+  red: { bg: 'bg-red-50', icon: 'bg-red-100 text-red-600', text: 'text-red-700' },
+  amber: { bg: 'bg-amber-50', icon: 'bg-amber-100 text-amber-600', text: 'text-amber-700' },
 }
 
 export function StatCard({ icon: Icon, value, label, trend, color = 'blue', size = 'md', index = 0 }: Props) {
+  const config = colorConfig[color]
+  
   const sizeClasses = {
-    sm: 'p-3',
-    md: 'p-4',
-    lg: 'p-5',
+    sm: 'p-4',
+    md: 'p-5',
+    lg: 'p-6',
   }
 
   const valueSizes = {
-    sm: 'text-lg',
+    sm: 'text-xl',
     md: 'text-2xl',
     lg: 'text-3xl',
+  }
+
+  const iconSizes = {
+    sm: 20,
+    md: 24,
+    lg: 28,
   }
 
   return (
     <div
       style={{ animationDelay: `${index * 100}ms` }}
-      className={`${colorClasses[color]} rounded-xl ${sizeClasses[size]} border border-gray-100 stagger-item relative`}
+      className={`bg-white rounded-2xl ${sizeClasses[size]} border border-gray-100 shadow-sm stagger-item`}
     >
-      <div className="relative">
-        <div className="flex items-start justify-between">
-          <div className="p-2 bg-gray-100 rounded-lg">
-            <Icon size={size === 'sm' ? 18 : size === 'md' ? 22 : 26} className="text-gray-600" />
-          </div>
-          {trend && (
-            <span
-              className={`text-xs px-2 py-1 rounded font-medium ${
-                trend.isPositive ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
-            </span>
-          )}
+      <div className="flex items-start justify-between mb-3">
+        <div className={`p-2.5 rounded-xl ${config.icon}`}>
+          <Icon size={iconSizes[size]} />
         </div>
-        <p className={`${valueSizes[size]} font-semibold mt-3 text-gray-800`}>{value}</p>
-        <p className="text-sm text-gray-500 mt-0.5">{label}</p>
+        {trend && (
+          <span
+            className={`text-sm px-2.5 py-1 rounded-lg font-semibold ${
+              trend.isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            }`}
+          >
+            {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
+          </span>
+        )}
       </div>
+      <p className={`${valueSizes[size]} font-bold text-gray-900`}>{value}</p>
+      <p className="text-sm text-gray-500 mt-1 font-medium">{label}</p>
     </div>
   )
 }

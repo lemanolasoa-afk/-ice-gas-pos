@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
+// @ts-expect-error - Vite env types
+const VAPID_PUBLIC_KEY = import.meta.env?.VITE_VAPID_PUBLIC_KEY || ''
+const SUPABASE_URL = 'https://diuqqgbldqmokhthvjsx.supabase.co'
 
 export interface NotificationPayload {
   title: string
@@ -11,6 +13,15 @@ export interface NotificationPayload {
   data?: Record<string, unknown>
   actions?: Array<{ action: string; title: string }>
   silent?: boolean
+}
+
+export interface SendPushResult {
+  success: boolean
+  sent?: number
+  failed?: number
+  total?: number
+  message?: string
+  error?: string
 }
 
 export class PushManager {
@@ -80,7 +91,7 @@ export class PushManager {
 
       const subscription = await this.registration!.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: this.urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        applicationServerKey: this.urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource
       })
 
       // Save subscription to database
@@ -179,15 +190,16 @@ export class PushManager {
       return
     }
 
-    await this.registration?.showNotification(payload.title, {
+    const options: NotificationOptions = {
       body: payload.body,
       icon: payload.icon || '/icon-192x192.png',
       badge: payload.badge || '/badge-72x72.png',
       tag: payload.tag,
       data: payload.data,
       silent: payload.silent,
-      vibrate: payload.silent ? undefined : [200, 100, 200]
-    })
+    }
+    
+    await this.registration?.showNotification(payload.title, options)
   }
 
   /**
@@ -206,5 +218,120 @@ export class PushManager {
       outputArray[i] = rawData.charCodeAt(i)
     }
     return outputArray
+  }
+
+  /**
+   * Send push notification to a specific user via Edge Function
+   */
+  static async sendPushToUser(userId: string, payload: NotificationPayload): Promise<SendPushResult> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          payload,
+        }),
+      })
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      console.error('Failed to send push notification:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Send push notification to users by role via Edge Function
+   * @param role - 'admin' | 'cashier' | 'all'
+   * @param notificationType - 'low_stock' | 'daily_target' | 'credit_due' | 'system'
+   * @param payload - Notification content
+   */
+  static async sendPushToRole(
+    role: 'admin' | 'cashier' | 'all',
+    notificationType: string,
+    payload: NotificationPayload
+  ): Promise<SendPushResult> {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-push-to-role`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          role,
+          notification_type: notificationType,
+          payload,
+        }),
+      })
+
+      const result = await response.json()
+      return result
+    } catch (error) {
+      console.error('Failed to send push notification to role:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Send low stock alert to admins
+   */
+  static async sendLowStockAlert(productName: string, currentStock: number, unit: string): Promise<SendPushResult> {
+    return this.sendPushToRole('admin', 'low_stock', {
+      title: '⚠️ สินค้าใกล้หมด',
+      body: `${productName} เหลือ ${currentStock} ${unit}`,
+      tag: `low-stock-${productName}`,
+      data: {
+        type: 'low_stock',
+        url: '/products',
+      },
+    })
+  }
+
+  /**
+   * Send daily target reached notification
+   */
+  static async sendDailyTargetReached(totalSales: number): Promise<SendPushResult> {
+    return this.sendPushToRole('all', 'daily_target', {
+      title: '🎉 ยอดขายถึงเป้า!',
+      body: `วันนี้ขายได้ ${totalSales.toLocaleString()} บาท`,
+      tag: `daily-target-${new Date().toISOString().split('T')[0]}`,
+      data: {
+        type: 'daily_target',
+        url: '/dashboard',
+      },
+    })
+  }
+
+  /**
+   * Send credit due reminder
+   */
+  static async sendCreditDueReminder(customerName: string, amount: number): Promise<SendPushResult> {
+    return this.sendPushToRole('admin', 'credit_due', {
+      title: '💰 วางบิลครบกำหนด',
+      body: `${customerName} - ${amount.toLocaleString()} บาท`,
+      tag: `credit-due-${customerName}`,
+      data: {
+        type: 'credit_due',
+        url: '/customers',
+      },
+    })
   }
 }

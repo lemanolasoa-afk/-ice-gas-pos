@@ -19,57 +19,57 @@ export function Header({ title, icon, showBack = false, showNotifications = fals
   const lowStockCount = products.filter((p) => p.stock <= p.low_stock_threshold).length
 
   return (
-    <header className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-10">
+    <header className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {showBack && (
             <button
               onClick={() => navigate(-1)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+              className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-700"
             >
-              <ChevronLeft size={22} />
+              <ChevronLeft size={24} />
             </button>
           )}
           <div>
-            <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-              {icon && <span className="text-xl">{icon}</span>}
+            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              {icon && <span className="text-2xl">{icon}</span>}
               {title}
             </h1>
             {user && (
-              <p className="text-xs text-gray-400 flex items-center gap-1.5 mt-0.5">
+              <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
                 {user.role === 'admin' ? (
-                  <Crown size={10} className="text-gray-500" />
+                  <Crown size={12} className="text-amber-500" />
                 ) : (
-                  <ShoppingCart size={10} />
+                  <ShoppingCart size={12} />
                 )}
-                <span>{user.name}</span>
-                <span>•</span>
-                <span>{user.role === 'admin' ? 'ผู้ดูแล' : 'พนักงาน'}</span>
+                <span className="font-medium">{user.name}</span>
+                <span className="text-gray-300">•</span>
+                <span className={user.role === 'admin' ? 'text-amber-600' : 'text-gray-500'}>
+                  {user.role === 'admin' ? 'ผู้ดูแล' : 'พนักงาน'}
+                </span>
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {/* Connection Status */}
           <div
-            className={`p-2 rounded-lg transition-colors ${
-              isOnline
-                ? 'text-gray-400'
-                : 'text-red-400 animate-pulse'
+            className={`p-2.5 rounded-xl transition-colors ${
+              isOnline ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500 animate-pulse'
             }`}
           >
-            {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+            {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
           </div>
 
           {/* Notifications */}
           {showNotifications && lowStockCount > 0 && (
             <button
               onClick={() => navigate('/products')}
-              className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+              className="relative p-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors text-amber-600"
             >
-              <Bell size={18} />
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-gray-800 text-white rounded-full text-[10px] font-medium flex items-center justify-center">
+              <Bell size={20} />
+              <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs font-bold flex items-center justify-center shadow-sm">
                 {lowStockCount}
               </span>
             </button>

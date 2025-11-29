@@ -13,15 +13,23 @@ import { StockReceiptPage } from './pages/StockReceiptPage'
 import { UsersPage } from './pages/UsersPage'
 import { StockLogsPage } from './pages/StockLogsPage'
 import { ProfitReportPage } from './pages/ProfitReportPage'
+import { CylinderReturnPage } from './pages/CylinderReturnPage'
+import { BackupPage } from './pages/BackupPage'
+import { StockReportPage } from './pages/StockReportPage'
+import { CustomerReportPage } from './pages/CustomerReportPage'
 import { BottomNav } from './components/BottomNav'
 import { InstallPrompt } from './components/InstallPrompt'
 import { LoginModal } from './components/LoginModal'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ToastProvider, useToast } from './components/Toast'
+import { ConfirmProvider } from './hooks/useConfirm'
+import { useNavigationShortcuts } from './hooks/useKeyboardShortcuts'
 import { useStore } from './store/useStore'
 import { useAuthStore } from './store/authStore'
 
 function AppContent() {
+  // Enable keyboard shortcuts for navigation
+  useNavigationShortcuts()
   const setOnline = useStore((state) => state.setOnline)
   const isOnline = useStore((state) => state.isOnline)
   const offlineQueue = useStore((state) => state.offlineQueue)
@@ -171,6 +179,26 @@ function AppContent() {
             <ProfitReportPage />
           </ProtectedRoute>
         } />
+        <Route path="/cylinder-return" element={
+          <ProtectedRoute permissions={['stock.receive']} fallback="/products">
+            <CylinderReturnPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/backup" element={
+          <ProtectedRoute permissions={['settings.export']} fallback="/settings">
+            <BackupPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/stock-report" element={
+          <ProtectedRoute permissions={['reports.view']} fallback="/dashboard">
+            <StockReportPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/customer-report" element={
+          <ProtectedRoute permissions={['reports.view']} fallback="/dashboard">
+            <CustomerReportPage />
+          </ProtectedRoute>
+        } />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
       <BottomNav />
@@ -185,7 +213,9 @@ function AppContent() {
 function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <ConfirmProvider>
+        <AppContent />
+      </ConfirmProvider>
     </ToastProvider>
   )
 }

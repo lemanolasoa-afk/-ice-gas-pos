@@ -9,6 +9,10 @@ export type NotificationType =
   | 'credit_due'
   | 'system'
 
+// Flag to use Edge Function for push notifications (server-side)
+// Set to true when VAPID keys are configured on the server
+const USE_EDGE_FUNCTION = true
+
 interface NotificationSettings {
   user_id: string
   enabled: boolean
@@ -34,33 +38,36 @@ export class NotificationTriggers {
 
     if (lowStockProducts.length === 0) return
 
-    // Get users with low_stock notification enabled
-    const { data: settings } = await supabase
-      .from('notification_settings')
-      .select('user_id')
-      .eq('low_stock', true)
-      .eq('enabled', true)
-
-    if (!settings?.length) return
-
     // Send notifications for each low stock product
     for (const product of lowStockProducts) {
-      const payload: NotificationPayload = {
-        title: '⚠️ สินค้าใกล้หมด',
-        body: `${product.name} เหลือ ${product.stock} ${product.unit}`,
-        tag: `low-stock-${product.id}`,
-        data: {
-          type: 'low_stock' as NotificationType,
-          productId: product.id,
-          url: '/products'
+      if (USE_EDGE_FUNCTION) {
+        // Use Edge Function for server-side push
+        await PushManager.sendLowStockAlert(product.name, product.stock, product.unit)
+      } else {
+        // Fallback to local notification
+        const { data: settings } = await supabase
+          .from('notification_settings')
+          .select('user_id')
+          .eq('low_stock', true)
+          .eq('enabled', true)
+
+        if (!settings?.length) continue
+
+        const payload: NotificationPayload = {
+          title: '⚠️ สินค้าใกล้หมด',
+          body: `${product.name} เหลือ ${product.stock} ${product.unit}`,
+          tag: `low-stock-${product.id}`,
+          data: {
+            type: 'low_stock' as NotificationType,
+            productId: product.id,
+            url: '/products'
+          }
         }
-      }
 
-
-      // Show local notification for each user
-      for (const setting of settings) {
-        await this.logNotification(setting.user_id, 'low_stock', payload)
-        await PushManager.showLocalNotification(payload)
+        for (const setting of settings) {
+          await this.logNotification(setting.user_id, 'low_stock', payload)
+          await PushManager.showLocalNotification(payload)
+        }
       }
     }
   }
@@ -69,7 +76,7 @@ export class NotificationTriggers {
    * Check and send daily target notification
    */
   static async checkDailyTarget(currentTotal: number): Promise<void> {
-    // Get users with daily_target notification enabled
+    // Get the minimum daily target to check if we should send notification
     const { data: settings } = await supabase
       .from('notification_settings')
       .select('user_id, daily_target_amount')
@@ -78,20 +85,30 @@ export class NotificationTriggers {
 
     if (!settings?.length) return
 
-    for (const setting of settings) {
-      if (currentTotal >= setting.daily_target_amount) {
-        const payload: NotificationPayload = {
-          title: '🎉 ยอดขายถึงเป้า!',
-          body: `วันนี้ขายได้ ${currentTotal.toLocaleString()} บาท`,
-          tag: `daily-target-${new Date().toISOString().split('T')[0]}`,
-          data: {
-            type: 'daily_target' as NotificationType,
-            url: '/dashboard'
-          }
-        }
+    // Check if any user's target has been reached
+    const targetReached = settings.some(s => currentTotal >= s.daily_target_amount)
+    if (!targetReached) return
 
-        await this.logNotification(setting.user_id, 'daily_target', payload)
-        await PushManager.showLocalNotification(payload)
+    if (USE_EDGE_FUNCTION) {
+      // Use Edge Function for server-side push
+      await PushManager.sendDailyTargetReached(currentTotal)
+    } else {
+      // Fallback to local notification
+      for (const setting of settings) {
+        if (currentTotal >= setting.daily_target_amount) {
+          const payload: NotificationPayload = {
+            title: '🎉 ยอดขายถึงเป้า!',
+            body: `วันนี้ขายได้ ${currentTotal.toLocaleString()} บาท`,
+            tag: `daily-target-${new Date().toISOString().split('T')[0]}`,
+            data: {
+              type: 'daily_target' as NotificationType,
+              url: '/dashboard'
+            }
+          }
+
+          await this.logNotification(setting.user_id, 'daily_target', payload)
+          await PushManager.showLocalNotification(payload)
+        }
       }
     }
   }
@@ -161,27 +178,32 @@ export class NotificationTriggers {
     userId: string,
     customer: { name: string; amount: number }
   ): Promise<void> {
-    // Check if user has credit_due enabled
-    const { data: settings } = await supabase
-      .from('notification_settings')
-      .select('credit_due, enabled')
-      .eq('user_id', userId)
-      .single()
+    if (USE_EDGE_FUNCTION) {
+      // Use Edge Function for server-side push
+      await PushManager.sendCreditDueReminder(customer.name, customer.amount)
+    } else {
+      // Fallback to local notification
+      const { data: settings } = await supabase
+        .from('notification_settings')
+        .select('credit_due, enabled')
+        .eq('user_id', userId)
+        .single()
 
-    if (!settings?.credit_due || !settings?.enabled) return
+      if (!settings?.credit_due || !settings?.enabled) return
 
-    const payload: NotificationPayload = {
-      title: '💰 วางบิลครบกำหนด',
-      body: `${customer.name} - ${customer.amount.toLocaleString()} บาท`,
-      tag: `credit-due-${customer.name}`,
-      data: {
-        type: 'credit_due' as NotificationType,
-        url: '/customers'
+      const payload: NotificationPayload = {
+        title: '💰 วางบิลครบกำหนด',
+        body: `${customer.name} - ${customer.amount.toLocaleString()} บาท`,
+        tag: `credit-due-${customer.name}`,
+        data: {
+          type: 'credit_due' as NotificationType,
+          url: '/customers'
+        }
       }
-    }
 
-    await this.logNotification(userId, 'credit_due', payload)
-    await PushManager.showLocalNotification(payload)
+      await this.logNotification(userId, 'credit_due', payload)
+      await PushManager.showLocalNotification(payload)
+    }
   }
 
   /**
