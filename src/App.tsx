@@ -19,6 +19,7 @@ import { StockReportPage } from './pages/StockReportPage'
 import { CustomerReportPage } from './pages/CustomerReportPage'
 import { DailyStockCountPage } from './pages/DailyStockCountPage'
 import { MeltLossReportPage } from './pages/MeltLossReportPage'
+import { AdminPanelPage } from './pages/AdminPanelPage'
 import { BottomNav } from './components/BottomNav'
 import { InstallPrompt } from './components/InstallPrompt'
 import { LoginModal } from './components/LoginModal'
@@ -209,6 +210,11 @@ function AppContent() {
         <Route path="/melt-loss-report" element={
           <ProtectedRoute permissions={['reports.view']} fallback="/dashboard">
             <MeltLossReportPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin" element={
+          <ProtectedRoute permissions={['dashboard.stats']} fallback="/dashboard">
+            <AdminPanelPage />
           </ProtectedRoute>
         } />
         <Route path="/settings" element={<SettingsPage />} />

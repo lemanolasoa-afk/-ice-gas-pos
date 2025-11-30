@@ -122,6 +122,7 @@ export function SettingsPage() {
       icon: UserCog,
       color: 'bg-gray-500',
       items: [
+        { icon: Database, label: 'Admin Panel', desc: 'จัดการภาพรวม', path: '/admin', permission: 'dashboard.stats' },
         { icon: UserCog, label: 'จัดการผู้ใช้', path: '/users', permission: 'users.manage' },
         { icon: Database, label: 'สำรองข้อมูล', path: '/backup', permission: 'settings.export' },
       ]
