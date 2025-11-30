@@ -389,12 +389,21 @@ export const useStore = create<POSStore>()(
             }
             
             // Create stock log with user_id
+            let logNote = `ขาย ${item.quantity} ${item.product.unit}`
+            if (item.gasSaleType === 'deposit') {
+              logNote = `ค้างถัง ${item.quantity} ถัง - ${options.customerName || 'ลูกค้าทั่วไป'}`
+            } else if (item.gasSaleType === 'exchange') {
+              logNote = `แลกถัง ${item.quantity} ถัง`
+            } else if (item.gasSaleType === 'outright') {
+              logNote = `ซื้อขาด ${item.quantity} ถัง`
+            }
+            
             await supabase.from('stock_logs').insert({
               id: `log-${Date.now()}-${item.product.id}`,
               product_id: item.product.id,
               change_amount: -item.quantity,
               reason,
-              note: `ขาย ${item.quantity} ${item.product.unit}`,
+              note: logNote,
               user_id: getCurrentUserId()
             })
             
@@ -407,6 +416,30 @@ export const useStore = create<POSStore>()(
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', item.product.id)
+            }
+            
+            // สำหรับการขายแบบค้างถัง (deposit): บันทึกลง outstanding_cylinders
+            if (item.gasSaleType === 'deposit') {
+              // หา sale_item_id ที่เพิ่งสร้าง
+              const { data: saleItemData } = await supabase
+                .from('sale_items')
+                .select('id')
+                .eq('sale_id', sale.id)
+                .eq('product_id', item.product.id)
+                .single()
+              
+              if (saleItemData) {
+                await supabase.from('outstanding_cylinders').insert({
+                  id: `oc-${Date.now()}-${item.product.id}`,
+                  sale_id: sale.id,
+                  sale_item_id: saleItemData.id,
+                  product_id: item.product.id,
+                  customer_id: options.customerId || null,
+                  quantity: item.quantity,
+                  deposit_amount: item.product.deposit_amount || 0,
+                  status: 'pending'
+                })
+              }
             }
           }
 

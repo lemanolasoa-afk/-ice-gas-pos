@@ -33,9 +33,11 @@ const reasonConfig: Record<string, { label: string; color: string; bg: string; i
   adjustment: { label: 'ปรับปรุง', color: 'text-blue-600', bg: 'bg-blue-50', icon: Settings },
   return: { label: 'คืนสินค้า', color: 'text-purple-600', bg: 'bg-purple-50', icon: Undo2 },
   exchange: { label: 'แลกถัง', color: 'text-cyan-600', bg: 'bg-cyan-50', icon: RefreshCw },
-  deposit_sale: { label: 'ขาย+มัดจำ', color: 'text-orange-600', bg: 'bg-orange-50', icon: Flame },
-  deposit_return: { label: 'คืนถัง', color: 'text-teal-600', bg: 'bg-teal-50', icon: Undo2 },
+  deposit_sale: { label: 'ค้างถัง', color: 'text-orange-600', bg: 'bg-orange-50', icon: Flame },
+  deposit_return: { label: 'รับคืนถัง', color: 'text-teal-600', bg: 'bg-teal-50', icon: Undo2 },
   refill: { label: 'เติมแก๊ส', color: 'text-amber-600', bg: 'bg-amber-50', icon: Flame },
+  outright_sale: { label: 'ซื้อขาด', color: 'text-pink-600', bg: 'bg-pink-50', icon: ShoppingCart },
+  melt_loss: { label: 'น้ำแข็งละลาย', color: 'text-sky-600', bg: 'bg-sky-50', icon: TrendingDown },
 }
 
 export function StockLogsPage() {

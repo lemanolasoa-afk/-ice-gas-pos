@@ -56,6 +56,8 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     'dashboard.view',
     'products.view',
     'customers.view',
+    'stock.receive',    // เพิ่มสต็อก/รับสินค้าเข้า
+    'stock.logs',       // ดูประวัติสต็อก
   ],
 }
 

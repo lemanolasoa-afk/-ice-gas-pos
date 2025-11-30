@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { POSPage } from './pages/POSPage'
 import { CartPage } from './pages/CartPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -13,7 +13,7 @@ import { StockReceiptPage } from './pages/StockReceiptPage'
 import { UsersPage } from './pages/UsersPage'
 import { StockLogsPage } from './pages/StockLogsPage'
 import { ProfitReportPage } from './pages/ProfitReportPage'
-import { CylinderReturnPage } from './pages/CylinderReturnPage'
+import { OutstandingCylindersPage } from './pages/OutstandingCylindersPage'
 import { BackupPage } from './pages/BackupPage'
 import { StockReportPage } from './pages/StockReportPage'
 import { CustomerReportPage } from './pages/CustomerReportPage'
@@ -182,11 +182,12 @@ function AppContent() {
             <ProfitReportPage />
           </ProtectedRoute>
         } />
-        <Route path="/cylinder-return" element={
+        <Route path="/outstanding-cylinders" element={
           <ProtectedRoute permissions={['stock.receive']} fallback="/products">
-            <CylinderReturnPage />
+            <OutstandingCylindersPage />
           </ProtectedRoute>
         } />
+        <Route path="/cylinder-return" element={<Navigate to="/outstanding-cylinders" replace />} />
         <Route path="/backup" element={
           <ProtectedRoute permissions={['settings.export']} fallback="/settings">
             <BackupPage />

@@ -29,7 +29,7 @@ export function BottomNav() {
   })
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 pb-safe shadow-lg">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-200 px-2 shadow-lg bottom-nav" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
       <div className="flex justify-around items-center h-18 max-w-lg mx-auto py-2">
         {visibleNavItems.map((item) => {
           const Icon = item.icon
@@ -38,7 +38,7 @@ export function BottomNav() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`relative flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${
+              className={`relative flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all touch-feedback touch-target ${
                 isActive ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >

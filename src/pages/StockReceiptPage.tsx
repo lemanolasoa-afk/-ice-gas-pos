@@ -194,13 +194,13 @@ export function StockReceiptPage() {
           )}
         </div>
 
-        {/* Link to Cylinder Return */}
+        {/* Link to Outstanding Cylinders */}
         {gasProducts.length > 0 && (
           <a
-            href="/cylinder-return"
-            className="block w-full py-3 bg-white border-2 border-orange-200 text-orange-600 rounded-xl font-medium text-center hover:bg-orange-50 transition-colors"
+            href="/outstanding-cylinders"
+            className="block w-full py-3 bg-white border-2 border-amber-200 text-amber-600 rounded-xl font-medium text-center hover:bg-amber-50 transition-colors"
           >
-            🔄 รับคืนถังแก๊ส (คืนเงินมัดจำ)
+            📦 ดูถังค้างคืน / รับคืนถัง
           </a>
         )}
 
