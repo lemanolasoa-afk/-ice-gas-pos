@@ -45,8 +45,7 @@ export function ProductList({ products, categories, onEdit, onDelete }: Props) {
 
         return (
           <div key={category.id}>
-            <div className={`px-4 py-2 ${category.color} text-white flex items-center gap-2`}>
-              <span className="text-base">{category.icon}</span>
+            <div className="px-4 py-2 bg-gray-800 text-white flex items-center gap-2">
               <span className="text-sm font-medium">{category.name}</span>
               <span className="text-xs opacity-75">({categoryProducts.length})</span>
             </div>
@@ -70,8 +69,7 @@ export function ProductList({ products, categories, onEdit, onDelete }: Props) {
 
         return (
           <div key={catId}>
-            <div className="px-4 py-2 bg-gray-500 text-white flex items-center gap-2">
-              <span className="text-base">📦</span>
+            <div className="px-4 py-2 bg-gray-600 text-white flex items-center gap-2">
               <span className="text-sm font-medium">{catId}</span>
               <span className="text-xs opacity-75">({categoryProducts.length})</span>
             </div>

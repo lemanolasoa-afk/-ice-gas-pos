@@ -141,7 +141,7 @@ export function ProductsPage() {
   return (
     <div className="min-h-screen pb-20">
       <header className="bg-white border-b border-gray-100 px-4 py-4 sticky top-0 z-10">
-        <h1 className="text-lg font-semibold text-gray-800">📦 จัดการสินค้า</h1>
+        <h1 className="text-lg font-semibold text-gray-800">จัดการสินค้า</h1>
       </header>
 
       <div className="p-4 space-y-4">
