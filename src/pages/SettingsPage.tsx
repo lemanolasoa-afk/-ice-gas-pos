@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Store, Trash2, Download, Info, Package, BarChart3, Users,
+  Store, Trash2, Info, Package, BarChart3, Users,
   Tag, PackagePlus, ChevronRight, TrendingUp, ShoppingCart,
   LogOut, History, DollarSign, UserCog, Smartphone, AlertCircle, Bell,
-  Database, Snowflake, Droplets
+  Database, Snowflake, Droplets, Printer, RefreshCw
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
-import { useToast } from '../components/Toast'
 import { hasPermission, Permission } from '../lib/permissions'
 import { NotificationSettings } from '../components/NotificationSettings'
+import { PrinterSettings } from '../components/PrinterSettings'
 import { BackupManager } from '../lib/backupManager'
 
 export function SettingsPage() {
@@ -20,9 +20,9 @@ export function SettingsPage() {
   const fetchSales = useStore((s) => s.fetchSales)
   const fetchProducts = useStore((s) => s.fetchProducts)
   const { user, logout } = useAuthStore()
-  const { showToast } = useToast()
   const [isInstalled, setIsInstalled] = useState(false)
   const [showBackupReminder, setShowBackupReminder] = useState(false)
+  const [expandedSection, setExpandedSection] = useState<string | null>(null)
 
   useEffect(() => {
     fetchSales()
@@ -30,21 +30,13 @@ export function SettingsPage() {
     
     // ตรวจสอบว่าแอปถูกติดตั้งแล้วหรือไม่
     const checkInstallStatus = () => {
-      // วิธีที่ 1: ตรวจสอบ display-mode
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-      
-      // วิธีที่ 2: ตรวจสอบ iOS standalone
       const isIOSStandalone = (window.navigator as any).standalone === true
-      
-      // วิธีที่ 3: ตรวจสอบ Android TWA
       const isAndroidTWA = document.referrer.includes('android-app://')
-      
       setIsInstalled(isStandalone || isIOSStandalone || isAndroidTWA)
     }
     
     checkInstallStatus()
-    
-    // Check backup reminder
     setShowBackupReminder(BackupManager.shouldShowBackupReminder())
   }, [fetchSales, fetchProducts])
 
@@ -70,227 +62,296 @@ export function SettingsPage() {
     }
   }
 
-  // Menu items with permission requirements
+  // Menu items organized by category
   interface MenuItem {
     icon: typeof Package
     label: string
-    desc: string
+    desc?: string
     path: string
-    color: string
     permission?: Permission
   }
 
-  const allMenuItems: MenuItem[] = [
-    { icon: Package, label: 'จัดการสินค้า', desc: `${products.length} รายการ`, path: '/products', color: 'bg-blue-500', permission: 'products.view' },
-    { icon: PackagePlus, label: 'รับสินค้าเข้าสต็อก', desc: 'เพิ่มสต็อกสินค้า', path: '/stock-receipt', color: 'bg-green-500', permission: 'stock.receive' },
-    { icon: History, label: 'ประวัติสต็อก', desc: 'ดู log การเปลี่ยนแปลง', path: '/stock-logs', color: 'bg-teal-500', permission: 'stock.logs' },
-    { icon: Snowflake, label: 'ปิดยอดสต๊อกน้ำแข็ง', desc: 'บันทึกการละลายประจำวัน', path: '/daily-stock-count', color: 'bg-cyan-500', permission: 'stock.receive' },
-    { icon: Droplets, label: 'รายงานการละลาย', desc: 'สรุปการสูญเสียจากการละลาย', path: '/melt-loss-report', color: 'bg-amber-500', permission: 'reports.view' },
-    { icon: BarChart3, label: 'รายงานยอดขาย', desc: 'ดูสถิติและกราฟ', path: '/reports', color: 'bg-purple-500', permission: 'reports.view' },
-    { icon: DollarSign, label: 'รายงานกำไร', desc: 'วิเคราะห์กำไรขาดทุน', path: '/profit', color: 'bg-emerald-500', permission: 'reports.profit' },
-    { icon: Users, label: 'ลูกค้าสมาชิก', desc: 'ระบบสะสมแต้ม', path: '/customers', color: 'bg-orange-500', permission: 'customers.view' },
-    { icon: Tag, label: 'โปรโมชั่น/ส่วนลด', desc: 'จัดการส่วนลด', path: '/discounts', color: 'bg-pink-500', permission: 'discounts.view' },
-    { icon: UserCog, label: 'จัดการผู้ใช้', desc: 'เพิ่ม/ลบพนักงาน', path: '/users', color: 'bg-indigo-500', permission: 'users.manage' },
-    { icon: Database, label: 'สำรองข้อมูล', desc: 'Backup & Import', path: '/backup', color: 'bg-cyan-500', permission: 'settings.export' },
+  interface MenuSection {
+    id: string
+    title: string
+    icon: typeof Package
+    color: string
+    items: MenuItem[]
+  }
+
+  const menuSections: MenuSection[] = [
+    {
+      id: 'stock',
+      title: 'จัดการสต็อก',
+      icon: Package,
+      color: 'bg-blue-500',
+      items: [
+        { icon: Package, label: 'สินค้าทั้งหมด', desc: `${products.length} รายการ`, path: '/products', permission: 'products.view' },
+        { icon: PackagePlus, label: 'รับสินค้าเข้า', path: '/stock-receipt', permission: 'stock.receive' },
+        { icon: RefreshCw, label: 'รับคืนถังแก๊ส', path: '/cylinder-return', permission: 'stock.receive' },
+        { icon: History, label: 'ประวัติสต็อก', path: '/stock-logs', permission: 'stock.logs' },
+        { icon: Snowflake, label: 'ปิดยอดน้ำแข็ง', path: '/daily-stock-count', permission: 'stock.receive' },
+      ]
+    },
+    {
+      id: 'reports',
+      title: 'รายงาน',
+      icon: BarChart3,
+      color: 'bg-purple-500',
+      items: [
+        { icon: BarChart3, label: 'ยอดขาย', path: '/reports', permission: 'reports.view' },
+        { icon: DollarSign, label: 'กำไร', path: '/profit', permission: 'reports.profit' },
+        { icon: Package, label: 'สต็อก', path: '/stock-report', permission: 'reports.view' },
+        { icon: Users, label: 'ลูกค้า', path: '/customer-report', permission: 'reports.view' },
+        { icon: Droplets, label: 'การละลาย', path: '/melt-loss-report', permission: 'reports.view' },
+      ]
+    },
+    {
+      id: 'crm',
+      title: 'ลูกค้า & โปรโมชั่น',
+      icon: Users,
+      color: 'bg-orange-500',
+      items: [
+        { icon: Users, label: 'ลูกค้าสมาชิก', path: '/customers', permission: 'customers.view' },
+        { icon: Tag, label: 'ส่วนลด/โปรโมชั่น', path: '/discounts', permission: 'discounts.view' },
+      ]
+    },
+    {
+      id: 'system',
+      title: 'ระบบ',
+      icon: UserCog,
+      color: 'bg-gray-500',
+      items: [
+        { icon: UserCog, label: 'จัดการผู้ใช้', path: '/users', permission: 'users.manage' },
+        { icon: Database, label: 'สำรองข้อมูล', path: '/backup', permission: 'settings.export' },
+      ]
+    },
   ]
 
-  // Filter menu items based on user permissions
-  const menuItems = allMenuItems.filter(item => {
-    if (!item.permission) return true
-    return hasPermission(user?.role, item.permission)
-  })
+  // Filter sections based on permissions
+  const visibleSections = menuSections.map(section => ({
+    ...section,
+    items: section.items.filter(item => !item.permission || hasPermission(user?.role, item.permission))
+  })).filter(section => section.items.length > 0)
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSection(expandedSection === sectionId ? null : sectionId)
+  }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-20 bg-gray-50">
       <header className="bg-white border-b border-gray-100 px-4 py-4 sticky top-0 z-10">
-        <h1 className="text-lg font-semibold text-gray-800">⚙️ ตั้งค่าและจัดการ</h1>
+        <h1 className="text-lg font-semibold text-gray-800">⚙️ เพิ่มเติม</h1>
       </header>
 
-      <div className="p-4 space-y-4">
-        {/* User Info */}
+      <div className="p-4 space-y-3">
+        {/* User Info - Compact */}
         <div className="bg-white rounded-xl p-4 border border-gray-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                <Store className="text-gray-600" size={22} />
+              <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">
+                  {user?.name?.charAt(0) || 'U'}
+                </span>
               </div>
               <div>
-                <h2 className="font-medium text-gray-800">
-                  {user?.name || 'ร้านน้ำแข็ง แก๊ส น้ำดื่ม'}
-                </h2>
-                <p className="text-sm text-gray-500">
-                  {user?.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงานขาย'}
+                <h2 className="font-medium text-gray-800">{user?.name || 'ผู้ใช้'}</h2>
+                <p className="text-xs text-gray-500">
+                  {user?.role === 'admin' ? '👑 ผู้ดูแลระบบ' : '🛒 พนักงานขาย'}
                 </p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
-              title="ออกจากระบบ"
+              className="px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg flex items-center gap-1"
             >
-              <LogOut size={20} />
+              <LogOut size={16} />
+              ออก
             </button>
           </div>
         </div>
 
-        {/* Backup Reminder */}
-        {showBackupReminder && hasPermission(user?.role, 'settings.export') && (
-          <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <Database className="text-cyan-600 flex-shrink-0 mt-0.5" size={20} />
-              <div className="flex-1">
-                <h3 className="font-medium text-cyan-900 mb-1">แนะนำให้สำรองข้อมูล</h3>
-                <p className="text-sm text-cyan-800 mb-2">
-                  ควรสำรองข้อมูลเป็นประจำเพื่อป้องกันข้อมูลสูญหาย
-                </p>
-                <button
-                  onClick={() => navigate('/backup')}
-                  className="px-3 py-1.5 bg-cyan-600 text-white text-sm rounded-lg"
-                >
-                  สำรองข้อมูล
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white border border-gray-100 rounded-xl p-3">
-            <TrendingUp size={18} className="mb-1 text-gray-400" />
-            <p className="text-base font-semibold text-gray-800">฿{todayRevenue.toLocaleString()}</p>
+        {/* Quick Stats - Horizontal */}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex-shrink-0 bg-white border border-gray-100 rounded-xl px-4 py-3 min-w-[100px]">
+            <p className="text-lg font-bold text-gray-800">฿{todayRevenue.toLocaleString()}</p>
             <p className="text-xs text-gray-500">ยอดวันนี้</p>
           </div>
-          <div className="bg-white border border-gray-100 rounded-xl p-3">
-            <ShoppingCart size={18} className="mb-1 text-gray-400" />
-            <p className="text-base font-semibold text-gray-800">{todaySales.length}</p>
-            <p className="text-xs text-gray-500">ออเดอร์วันนี้</p>
+          <div className="flex-shrink-0 bg-white border border-gray-100 rounded-xl px-4 py-3 min-w-[80px]">
+            <p className="text-lg font-bold text-gray-800">{todaySales.length}</p>
+            <p className="text-xs text-gray-500">ออเดอร์</p>
           </div>
-          <div className="bg-white border border-gray-100 rounded-xl p-3">
-            <Package size={18} className="mb-1 text-gray-400" />
-            <p className="text-base font-semibold text-gray-800">{lowStockCount}</p>
-            <p className="text-xs text-gray-500">สินค้าใกล้หมด</p>
-          </div>
+          {lowStockCount > 0 && (
+            <button 
+              onClick={() => navigate('/products')}
+              className="flex-shrink-0 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 min-w-[80px]"
+            >
+              <p className="text-lg font-bold text-amber-600">{lowStockCount}</p>
+              <p className="text-xs text-amber-600">ใกล้หมด</p>
+            </button>
+          )}
         </div>
 
-        {/* Menu Items */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          {menuItems.map((item, idx) => {
-            const Icon = item.icon
+        {/* Backup Reminder - Compact */}
+        {showBackupReminder && hasPermission(user?.role, 'settings.export') && (
+          <button
+            onClick={() => navigate('/backup')}
+            className="w-full bg-cyan-50 border border-cyan-200 rounded-xl p-3 flex items-center gap-3"
+          >
+            <Database className="text-cyan-600" size={20} />
+            <span className="flex-1 text-left text-sm text-cyan-800">แนะนำให้สำรองข้อมูล</span>
+            <ChevronRight className="text-cyan-400" size={18} />
+          </button>
+        )}
+
+        {/* Menu Sections - Accordion Style */}
+        <div className="space-y-2">
+          {visibleSections.map((section) => {
+            const SectionIcon = section.icon
+            const isExpanded = expandedSection === section.id
+            
             return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-4 p-4 hover:bg-gray-50 ${idx < menuItems.length - 1 ? 'border-b border-gray-50' : ''}`}
-              >
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Icon className="text-gray-600" size={18} />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="font-medium text-gray-800">{item.label}</p>
-                  <p className="text-sm text-gray-500">{item.desc}</p>
-                </div>
-                <ChevronRight className="text-gray-300" size={18} />
-              </button>
+              <div key={section.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <button
+                  onClick={() => toggleSection(section.id)}
+                  className="w-full flex items-center gap-3 p-4 hover:bg-gray-50"
+                >
+                  <div className={`w-9 h-9 ${section.color} rounded-lg flex items-center justify-center`}>
+                    <SectionIcon className="text-white" size={18} />
+                  </div>
+                  <span className="flex-1 text-left font-medium text-gray-800">{section.title}</span>
+                  <span className="text-xs text-gray-400 mr-1">{section.items.length}</span>
+                  <ChevronRight 
+                    className={`text-gray-300 transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
+                    size={18} 
+                  />
+                </button>
+                
+                {isExpanded && (
+                  <div className="border-t border-gray-100">
+                    {section.items.map((item, idx) => {
+                      const Icon = item.icon
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => navigate(item.path)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 ${
+                            idx < section.items.length - 1 ? 'border-b border-gray-50' : ''
+                          }`}
+                        >
+                          <Icon className="text-gray-400 ml-2" size={16} />
+                          <span className="flex-1 text-left text-gray-700">{item.label}</span>
+                          {item.desc && (
+                            <span className="text-xs text-gray-400">{item.desc}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>
 
-        {/* Actions - Only show for users with permissions */}
-        {(hasPermission(user?.role, 'settings.export') || hasPermission(user?.role, 'settings.clear')) && (
+        {/* Settings Cards - Collapsible */}
+        <div className="space-y-2">
+          {/* Notification Settings */}
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            {hasPermission(user?.role, 'settings.export') && (
-              <button
-                onClick={() => navigate('/backup')}
-                className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 border-b border-gray-50"
-              >
-                <Download className="text-gray-600" size={20} />
-                <div className="text-left">
-                  <p className="font-medium text-gray-800">สำรอง/ส่งออกข้อมูล</p>
-                  <p className="text-sm text-gray-500">Backup, Export, Import</p>
-                </div>
-                <ChevronRight className="text-gray-300 ml-auto" size={18} />
-              </button>
+            <button
+              onClick={() => toggleSection('notifications')}
+              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50"
+            >
+              <div className="w-9 h-9 bg-amber-500 rounded-lg flex items-center justify-center">
+                <Bell className="text-white" size={18} />
+              </div>
+              <span className="flex-1 text-left font-medium text-gray-800">การแจ้งเตือน</span>
+              <ChevronRight 
+                className={`text-gray-300 transition-transform ${expandedSection === 'notifications' ? 'rotate-90' : ''}`} 
+                size={18} 
+              />
+            </button>
+            {expandedSection === 'notifications' && (
+              <div className="border-t border-gray-100 p-4">
+                <NotificationSettings />
+              </div>
             )}
+          </div>
 
-            {hasPermission(user?.role, 'settings.clear') && (
-              <button
-                onClick={handleClearData}
-                className="w-full flex items-center gap-4 p-4 hover:bg-gray-50"
-              >
-                <Trash2 className="text-gray-500" size={20} />
-                <div className="text-left">
-                  <p className="font-medium text-gray-700">ล้างข้อมูลทั้งหมด</p>
-                  <p className="text-sm text-gray-500">ลบประวัติการขายและตะกร้า</p>
-                </div>
-              </button>
+          {/* Printer Settings */}
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <button
+              onClick={() => toggleSection('printer')}
+              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50"
+            >
+              <div className="w-9 h-9 bg-indigo-500 rounded-lg flex items-center justify-center">
+                <Printer className="text-white" size={18} />
+              </div>
+              <span className="flex-1 text-left font-medium text-gray-800">เครื่องพิมพ์</span>
+              <ChevronRight 
+                className={`text-gray-300 transition-transform ${expandedSection === 'printer' ? 'rotate-90' : ''}`} 
+                size={18} 
+              />
+            </button>
+            {expandedSection === 'printer' && (
+              <div className="border-t border-gray-100 p-4">
+                <PrinterSettings />
+              </div>
             )}
+          </div>
+        </div>
+
+        {/* Danger Zone - Admin Only */}
+        {hasPermission(user?.role, 'settings.clear') && (
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <button
+              onClick={handleClearData}
+              className="w-full flex items-center gap-3 p-4 hover:bg-red-50"
+            >
+              <div className="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center">
+                <Trash2 className="text-red-500" size={18} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-medium text-red-600">ล้างข้อมูลทั้งหมด</p>
+                <p className="text-xs text-gray-400">ลบประวัติการขายและตะกร้า</p>
+              </div>
+            </button>
           </div>
         )}
 
-        {/* Notification Settings */}
+        {/* App Info - Compact */}
         <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-2 text-gray-500 mb-3">
-            <Bell size={18} />
-            <span className="font-medium">การแจ้งเตือน</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-500">
+              <Info size={16} />
+              <span className="text-sm">Ice Gas POS v2.0</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {isInstalled ? (
+                <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">✓ ติดตั้งแล้ว</span>
+              ) : (
+                <span className="text-xs text-gray-400">PWA Ready</span>
+              )}
+              <Smartphone size={14} className="text-gray-400" />
+            </div>
           </div>
-          <NotificationSettings />
         </div>
 
-        {/* PWA Installation Status */}
+        {/* PWA Install Guide - Only if not installed */}
         {!isInstalled && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
             <div className="flex items-start gap-3">
-              <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+              <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
               <div className="flex-1">
-                <h3 className="font-medium text-amber-900 mb-1">แนะนำ: ติดตั้งแอปบนหน้าจอหลัก</h3>
-                <p className="text-sm text-amber-800 mb-3">
-                  เพื่อประสบการณ์การใช้งานที่ดีที่สุด ควรติดตั้งแอปบนหน้าจอหลักของคุณ
-                </p>
-                <div className="space-y-2 text-sm text-amber-800">
-                  <p className="font-medium">วิธีติดตั้ง:</p>
-                  <div className="pl-3 space-y-1">
-                    <p>• <strong>iOS Safari:</strong> กด Share → Add to Home Screen</p>
-                    <p>• <strong>Android Chrome:</strong> กด เมนู (⋮) → Install app</p>
-                    <p>• <strong>Desktop:</strong> กดไอคอน ⊕ ที่แถบ URL</p>
-                  </div>
+                <p className="text-sm font-medium text-amber-900 mb-2">ติดตั้งแอปเพื่อใช้งานได้ดีขึ้น</p>
+                <div className="text-xs text-amber-800 space-y-1">
+                  <p>• iOS: Share → Add to Home Screen</p>
+                  <p>• Android: เมนู (⋮) → Install app</p>
                 </div>
               </div>
             </div>
           </div>
         )}
-
-        {/* App Info */}
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-2 text-gray-500 mb-3">
-            <Info size={18} />
-            <span className="font-medium">เกี่ยวกับแอป</span>
-          </div>
-          <div className="space-y-2 text-sm text-gray-500">
-            <div className="flex items-center gap-2">
-              <Smartphone size={16} />
-              <span>
-                {isInstalled ? (
-                  <span className="text-green-600 font-medium">✓ ติดตั้งแอปแล้ว</span>
-                ) : (
-                  <span>รองรับ PWA (Add to Home Screen)</span>
-                )}
-              </span>
-            </div>
-            <p>• ใช้งานได้แบบ Offline</p>
-            <p>• ข้อมูลเก็บใน Supabase Cloud</p>
-            <p>• ระบบสต็อก, ลูกค้า, โปรโมชั่น</p>
-          </div>
-        </div>
-
-        {/* Total Stats */}
-        <div className="bg-gray-800 rounded-xl p-4 text-white">
-          <p className="text-gray-400 text-sm mb-1">ยอดขายทั้งหมด</p>
-          <p className="text-2xl font-semibold">
-            ฿{sales.reduce((sum, s) => sum + s.total, 0).toLocaleString()}
-          </p>
-          <p className="text-gray-400 text-sm mt-1">{sales.length} รายการ</p>
-        </div>
       </div>
     </div>
   )

@@ -3,14 +3,90 @@ import { supabase } from '../lib/supabase'
 import { Product, DailyStockCount, MeltLossReportSummary, MeltLossByProduct } from '../types'
 import { calculateAllMeltLossData } from '../lib/meltLossCalculations'
 
+// Error types for better error handling
+export type MeltLossErrorType = 
+  | 'NETWORK_ERROR'
+  | 'DATABASE_ERROR'
+  | 'VALIDATION_ERROR'
+  | 'NOT_FOUND'
+  | 'UNKNOWN_ERROR'
+
+export interface MeltLossError {
+  type: MeltLossErrorType
+  message: string
+  originalError?: unknown
+}
+
+// Helper to classify and format errors
+function classifyError(err: unknown): MeltLossError {
+  if (err instanceof Error) {
+    const message = err.message.toLowerCase()
+    
+    // Network errors
+    if (message.includes('network') || message.includes('fetch') || message.includes('connection')) {
+      return {
+        type: 'NETWORK_ERROR',
+        message: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต',
+        originalError: err
+      }
+    }
+    
+    // Database constraint errors
+    if (message.includes('duplicate') || message.includes('unique') || message.includes('constraint')) {
+      return {
+        type: 'DATABASE_ERROR',
+        message: 'ข้อมูลซ้ำกับที่มีอยู่แล้ว',
+        originalError: err
+      }
+    }
+    
+    // Not found errors
+    if (message.includes('not found') || message.includes('no rows')) {
+      return {
+        type: 'NOT_FOUND',
+        message: 'ไม่พบข้อมูลที่ต้องการ',
+        originalError: err
+      }
+    }
+    
+    // Generic database errors
+    if (message.includes('database') || message.includes('sql') || message.includes('postgres')) {
+      return {
+        type: 'DATABASE_ERROR',
+        message: 'เกิดข้อผิดพลาดในการเข้าถึงฐานข้อมูล',
+        originalError: err
+      }
+    }
+    
+    return {
+      type: 'UNKNOWN_ERROR',
+      message: err.message || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ',
+      originalError: err
+    }
+  }
+  
+  return {
+    type: 'UNKNOWN_ERROR',
+    message: 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ',
+    originalError: err
+  }
+}
+
 export function useMeltLoss() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorDetails, setErrorDetails] = useState<MeltLossError | null>(null)
+
+  // Clear error state
+  const clearError = useCallback(() => {
+    setError(null)
+    setErrorDetails(null)
+  }, [])
 
   // ดึงสินค้าประเภท ice ทั้งหมด
   const getIceProducts = useCallback(async (): Promise<Product[]> => {
     setLoading(true)
-    setError(null)
+    clearError()
     try {
       const { data, error: err } = await supabase
         .from('products')
@@ -21,12 +97,15 @@ export function useMeltLoss() {
       if (err) throw err
       return data || []
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
+      const classified = classifyError(err)
+      setError(classified.message)
+      setErrorDetails(classified)
+      console.error('getIceProducts error:', err)
       return []
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [clearError])
 
   // ดึงยอดขายวันนี้ของสินค้า
   const getTodaySales = useCallback(async (productId: string): Promise<number> => {
@@ -34,19 +113,22 @@ export function useMeltLoss() {
     const startOfDay = `${today}T00:00:00`
     const endOfDay = `${today}T23:59:59`
 
-    const { data, error: err } = await supabase
-      .from('sale_items')
-      .select('quantity, sales!inner(timestamp)')
-      .eq('product_id', productId)
-      .gte('sales.timestamp', startOfDay)
-      .lte('sales.timestamp', endOfDay)
+    try {
+      const { data, error: err } = await supabase
+        .from('sale_items')
+        .select('quantity, sales!inner(timestamp)')
+        .eq('product_id', productId)
+        .gte('sales.timestamp', startOfDay)
+        .lte('sales.timestamp', endOfDay)
 
-    if (err) {
-      console.error('Error fetching today sales:', err)
+      if (err) throw err
+      return data?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0
+    } catch (err) {
+      const classified = classifyError(err)
+      console.error('getTodaySales error:', classified.message, err)
+      // Return 0 but don't set global error - this is a non-critical operation
       return 0
     }
-
-    return data?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0
   }, [])
 
   // ดึงยอดขายวันนี้ของสินค้าทั้งหมด (batch)
@@ -55,24 +137,28 @@ export function useMeltLoss() {
     const startOfDay = `${today}T00:00:00`
     const endOfDay = `${today}T23:59:59`
 
-    const { data, error: err } = await supabase
-      .from('sale_items')
-      .select('product_id, quantity, sales!inner(timestamp)')
-      .in('product_id', productIds)
-      .gte('sales.timestamp', startOfDay)
-      .lte('sales.timestamp', endOfDay)
+    try {
+      const { data, error: err } = await supabase
+        .from('sale_items')
+        .select('product_id, quantity, sales!inner(timestamp)')
+        .in('product_id', productIds)
+        .gte('sales.timestamp', startOfDay)
+        .lte('sales.timestamp', endOfDay)
 
-    if (err) {
-      console.error('Error fetching today sales:', err)
+      if (err) throw err
+
+      const salesByProduct: Record<string, number> = {}
+      data?.forEach(item => {
+        salesByProduct[item.product_id] = (salesByProduct[item.product_id] || 0) + (item.quantity || 0)
+      })
+
+      return salesByProduct
+    } catch (err) {
+      const classified = classifyError(err)
+      console.error('getAllTodaySales error:', classified.message, err)
+      // Return empty but don't set global error - this is a non-critical operation
       return {}
     }
-
-    const salesByProduct: Record<string, number> = {}
-    data?.forEach(item => {
-      salesByProduct[item.product_id] = (salesByProduct[item.product_id] || 0) + (item.quantity || 0)
-    })
-
-    return salesByProduct
   }, [])
 
   // บันทึกปิดยอดสต๊อก
@@ -82,9 +168,21 @@ export function useMeltLoss() {
     soldToday: number,
     userId?: string,
     note?: string
-  ): Promise<{ success: boolean; error?: string; isAbnormal?: boolean }> => {
+  ): Promise<{ success: boolean; error?: string; errorType?: MeltLossErrorType; isAbnormal?: boolean }> => {
     setLoading(true)
-    setError(null)
+    clearError()
+
+    // Validation
+    if (actualStock < 0) {
+      const validationError: MeltLossError = {
+        type: 'VALIDATION_ERROR',
+        message: 'จำนวนสต๊อกต้องไม่ติดลบ'
+      }
+      setError(validationError.message)
+      setErrorDetails(validationError)
+      setLoading(false)
+      return { success: false, error: validationError.message, errorType: 'VALIDATION_ERROR' }
+    }
 
     try {
       const today = new Date().toISOString().split('T')[0]
@@ -147,13 +245,15 @@ export function useMeltLoss() {
 
       return { success: true, isAbnormal: calc.isAbnormal }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก'
-      setError(message)
-      return { success: false, error: message }
+      const classified = classifyError(err)
+      setError(classified.message)
+      setErrorDetails(classified)
+      console.error('saveDailyStockCount error:', err)
+      return { success: false, error: classified.message, errorType: classified.type }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [clearError])
 
   // ดึงรายงาน melt loss
   const getMeltLossReport = useCallback(async (
@@ -161,7 +261,7 @@ export function useMeltLoss() {
     endDate: string
   ): Promise<DailyStockCount[]> => {
     setLoading(true)
-    setError(null)
+    clearError()
 
     try {
       const { data, error: err } = await supabase
@@ -182,12 +282,15 @@ export function useMeltLoss() {
         product_cost: item.products?.cost
       }))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
+      const classified = classifyError(err)
+      setError(classified.message)
+      setErrorDetails(classified)
+      console.error('getMeltLossReport error:', err)
       return []
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [clearError])
 
   // ดึงสรุปรายงาน
   const getMeltLossSummary = useCallback(async (
@@ -252,19 +355,31 @@ export function useMeltLoss() {
   const checkTodayCount = useCallback(async (productId: string): Promise<DailyStockCount | null> => {
     const today = new Date().toISOString().split('T')[0]
     
-    const { data } = await supabase
-      .from('daily_stock_counts')
-      .select('*')
-      .eq('product_id', productId)
-      .eq('count_date', today)
-      .single()
+    try {
+      const { data, error: err } = await supabase
+        .from('daily_stock_counts')
+        .select('*')
+        .eq('product_id', productId)
+        .eq('count_date', today)
+        .single()
 
-    return data
+      // PGRST116 means no rows found - this is expected, not an error
+      if (err && err.code !== 'PGRST116') {
+        console.error('checkTodayCount error:', err)
+      }
+      
+      return data
+    } catch (err) {
+      console.error('checkTodayCount error:', err)
+      return null
+    }
   }, [])
 
   return {
     loading,
     error,
+    errorDetails,
+    clearError,
     getIceProducts,
     getTodaySales,
     getAllTodaySales,

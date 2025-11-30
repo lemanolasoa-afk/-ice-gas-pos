@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Calendar, Save, Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, Save, Loader2, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { StockCountCard } from '../components/stock/StockCountCard'
+import { StockCountListSkeleton } from '../components/Skeleton'
+import { ErrorMessage } from '../components/ErrorMessage'
+import { useToast } from '../components/Toast'
 import { useMeltLoss } from '../hooks/useMeltLoss'
 import { Product } from '../types'
-import { useStore } from '../store/useStore'
+import { useAuthStore } from '../store/authStore'
 import { NotificationTriggers } from '../lib/notificationTriggers'
 import { calculateAllMeltLossData } from '../lib/meltLossCalculations'
 
@@ -13,10 +16,16 @@ interface StockCountData {
   isAbnormal: boolean
 }
 
+interface SaveError {
+  productName: string
+  message: string
+}
+
 export function DailyStockCountPage() {
   const navigate = useNavigate()
-  const { currentUser } = useStore()
-  const { loading, error, getIceProducts, getAllTodaySales, saveDailyStockCount } = useMeltLoss()
+  const { user: currentUser } = useAuthStore()
+  const { showToast } = useToast()
+  const { loading, error, clearError, getIceProducts, getAllTodaySales, saveDailyStockCount } = useMeltLoss()
   
   const [products, setProducts] = useState<Product[]>([])
   const [salesByProduct, setSalesByProduct] = useState<Record<string, number>>({})
@@ -24,22 +33,26 @@ export function DailyStockCountPage() {
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveResult, setSaveResult] = useState<{ success: boolean; abnormalCount: number } | null>(null)
+  const [saveErrors, setSaveErrors] = useState<SaveError[]>([])
   const [selectedDate] = useState(new Date().toISOString().split('T')[0])
 
   // Load ice products and today's sales
-  useEffect(() => {
-    async function loadData() {
-      const iceProducts = await getIceProducts()
-      setProducts(iceProducts)
-      
-      if (iceProducts.length > 0) {
-        const productIds = iceProducts.map(p => p.id)
-        const sales = await getAllTodaySales(productIds)
-        setSalesByProduct(sales)
-      }
+  const loadData = useCallback(async () => {
+    clearError()
+    setSaveErrors([])
+    const iceProducts = await getIceProducts()
+    setProducts(iceProducts)
+    
+    if (iceProducts.length > 0) {
+      const productIds = iceProducts.map(p => p.id)
+      const sales = await getAllTodaySales(productIds)
+      setSalesByProduct(sales)
     }
+  }, [getIceProducts, getAllTodaySales, clearError])
+
+  useEffect(() => {
     loadData()
-  }, [getIceProducts, getAllTodaySales])
+  }, [loadData])
 
   // Handle stock count change
   const handleStockCountChange = useCallback((productId: string, actualStock: number, isAbnormal: boolean) => {
@@ -53,9 +66,12 @@ export function DailyStockCountPage() {
   const handleSave = async () => {
     setSaving(true)
     setSaveResult(null)
+    setSaveErrors([])
+    clearError()
     
     let abnormalCount = 0
-    let hasError = false
+    let successCount = 0
+    const errors: SaveError[] = []
     const abnormalProducts: { name: string; meltPercent: number; expectedPercent: number }[] = []
 
     for (const product of products) {
@@ -72,9 +88,15 @@ export function DailyStockCountPage() {
       )
 
       if (!result.success) {
-        hasError = true
-        break
+        errors.push({
+          productName: product.name,
+          message: result.error || 'เกิดข้อผิดพลาดในการบันทึก'
+        })
+        // Continue with other products instead of breaking
+        continue
       }
+
+      successCount++
 
       if (result.isAbnormal) {
         abnormalCount++
@@ -97,21 +119,37 @@ export function DailyStockCountPage() {
 
     setSaving(false)
     
-    if (!hasError) {
+    if (errors.length > 0) {
+      setSaveErrors(errors)
+      showToast('error', `บันทึกไม่สำเร็จ ${errors.length} รายการ`, 4000)
+    }
+    
+    if (successCount > 0) {
       setSaveResult({ success: true, abnormalCount })
+      
+      // Show success toast
+      if (abnormalCount > 0) {
+        showToast('info', `บันทึกสำเร็จ ${successCount} รายการ - พบการละลายผิดปกติ ${abnormalCount} รายการ`, 4000)
+      } else {
+        showToast('success', `บันทึกปิดยอดสำเร็จ ${successCount} รายการ`, 3000)
+      }
       
       // Send notifications for abnormal melt loss
       for (const abnormal of abnormalProducts) {
-        await NotificationTriggers.notifyMeltLossAbnormal(
-          abnormal.name,
-          abnormal.meltPercent,
-          abnormal.expectedPercent
-        )
+        try {
+          await NotificationTriggers.notifyMeltLossAbnormal(
+            abnormal.name,
+            abnormal.meltPercent,
+            abnormal.expectedPercent
+          )
+        } catch (notifyErr) {
+          console.error('Failed to send notification:', notifyErr)
+          // Don't fail the whole operation for notification errors
+        }
       }
       
       // Reload products to get updated stock
-      const iceProducts = await getIceProducts()
-      setProducts(iceProducts)
+      await loadData()
     }
   }
 
@@ -153,19 +191,42 @@ export function DailyStockCountPage() {
       {/* Content */}
       <div className="max-w-lg mx-auto px-4 py-4">
         {loading && products.length === 0 ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin text-blue-500" size={32} />
-          </div>
+          <StockCountListSkeleton count={3} />
         ) : error ? (
-          <div className="bg-red-50 text-red-700 p-4 rounded-xl">
-            {error}
-          </div>
+          <ErrorMessage 
+            message={error}
+            onRetry={loadData}
+            variant="inline"
+          />
         ) : products.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             ไม่มีสินค้าประเภทน้ำแข็ง
           </div>
         ) : (
           <>
+            {/* Save Errors */}
+            {saveErrors.length > 0 && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                <div className="flex items-center gap-2 text-red-700 mb-2">
+                  <AlertTriangle size={20} />
+                  <span className="font-semibold">บันทึกไม่สำเร็จบางรายการ</span>
+                </div>
+                <ul className="text-sm text-red-600 space-y-1">
+                  {saveErrors.map((err, idx) => (
+                    <li key={idx}>• {err.productName}: {err.message}</li>
+                  ))}
+                </ul>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="mt-3 flex items-center gap-2 text-red-600 hover:text-red-800 text-sm font-medium"
+                >
+                  <RefreshCw size={14} />
+                  ลองบันทึกใหม่
+                </button>
+              </div>
+            )}
+
             {/* Success/Warning Message */}
             {saveResult && (
               <div className={`mb-4 p-4 rounded-xl flex items-center gap-3 ${

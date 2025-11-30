@@ -120,3 +120,114 @@ export function DashboardSkeleton() {
     </div>
   )
 }
+
+// Melt Loss Stock Count Card Skeleton
+export function StockCountCardSkeleton() {
+  return (
+    <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <Skeleton variant="rounded" width={44} height={44} />
+        <div className="flex-1">
+          <Skeleton width="60%" height={20} />
+          <Skeleton width="40%" height={14} className="mt-1" />
+        </div>
+      </div>
+
+      {/* Stock Info Grid */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="bg-gray-50 rounded-xl p-3 text-center">
+            <Skeleton width="80%" height={12} className="mx-auto mb-1" />
+            <Skeleton width="50%" height={24} className="mx-auto" />
+            <Skeleton width="40%" height={12} className="mx-auto mt-1" />
+          </div>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="mb-4">
+        <Skeleton width="40%" height={16} className="mb-2" />
+        <Skeleton width="100%" height={48} variant="rounded" />
+      </div>
+
+      {/* Result */}
+      <Skeleton width="100%" height={80} variant="rounded" />
+    </div>
+  )
+}
+
+export function StockCountListSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <StockCountCardSkeleton key={i} />
+      ))}
+    </div>
+  )
+}
+
+// Melt Loss Report Skeleton
+export function MeltLossReportSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div className="bg-white rounded-xl p-4 border border-gray-100">
+        <Skeleton width={120} height={20} className="mb-4" />
+        <Skeleton width="100%" height={200} variant="rounded" />
+      </div>
+
+      {/* By Product Table */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <Skeleton width={150} height={20} />
+        </div>
+        <div className="divide-y divide-gray-100">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="px-4 py-3">
+              <div className="flex justify-between items-start mb-1">
+                <Skeleton width="40%" height={18} />
+                <Skeleton width="20%" height={18} />
+              </div>
+              <div className="flex justify-between mb-2">
+                <Skeleton width="50%" height={14} />
+                <Skeleton width="15%" height={14} />
+              </div>
+              <Skeleton width="100%" height={8} variant="rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recent Records */}
+      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <Skeleton width={100} height={20} />
+        </div>
+        <div className="divide-y divide-gray-100">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="px-4 py-3">
+              <div className="flex justify-between items-start">
+                <div>
+                  <Skeleton width={120} height={18} />
+                  <Skeleton width={80} height={14} className="mt-1" />
+                </div>
+                <div className="text-right">
+                  <Skeleton width={40} height={18} />
+                  <Skeleton width={30} height={14} className="mt-1 ml-auto" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}

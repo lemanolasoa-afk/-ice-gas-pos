@@ -69,6 +69,7 @@ if (!self.define) {
 }
 define(['./workbox-137dedbd'], (function (workbox) { 'use strict';
 
+  importScripts("sw-custom.js");
   self.skipWaiting();
   workbox.clientsClaim();
 
@@ -81,12 +82,13 @@ define(['./workbox-137dedbd'], (function (workbox) { 'use strict';
     "url": "registerSW.js",
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
-    "url": "index.html",
-    "revision": "0.0jffhtquj7"
+    "url": "/index.html",
+    "revision": "0.hvs63fopud8"
   }], {});
   workbox.cleanupOutdatedCaches();
-  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
-    allowlist: [/^\/$/]
+  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/index.html"), {
+    allowlist: [/^\/$/],
+    denylist: [/^\/api/]
   }));
   workbox.registerRoute(/^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i, new workbox.NetworkFirst({
     "cacheName": "supabase-api-cache",

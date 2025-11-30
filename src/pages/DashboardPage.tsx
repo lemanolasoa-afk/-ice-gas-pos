@@ -2,12 +2,11 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   TrendingUp, ShoppingCart, Package, Users, Clock,
-  ArrowRight, AlertTriangle, Star, BarChart3, DollarSign, ClipboardCheck
+  ArrowRight, AlertTriangle, BarChart3, DollarSign, ClipboardCheck
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
 import { Header } from '../components/Header'
-import { StatCard } from '../components/StatCard'
 import { supabase } from '../lib/supabase'
 import { hasPermission } from '../lib/permissions'
 import { ReportGenerator } from '../lib/reportGenerator'
@@ -25,17 +24,14 @@ export function DashboardPage() {
   useEffect(() => {
     fetchSales()
     fetchProducts()
-    // Fetch customer count
     supabase.from('customers').select('*', { count: 'exact', head: true })
       .then(({ count }) => setCustomerCount(count || 0))
     
-    // Fetch today's profit
     ReportGenerator.getTodaySummary()
       .then(summary => setTodayProfit({ profit: summary.profit, margin: summary.profitMargin }))
       .catch(err => console.error('Failed to fetch profit:', err))
   }, [fetchSales, fetchProducts])
 
-  // Memoized calculations for performance
   const { todaySales, todayRevenue, lowStockProducts, recentSales, topProducts } = useMemo(() => {
     const today = new Date().toDateString()
     const todaySales = sales.filter((s) => new Date(s.created_at).toDateString() === today)
@@ -43,7 +39,6 @@ export function DashboardPage() {
     const lowStockProducts = products.filter((p) => p.stock <= p.low_stock_threshold)
     const recentSales = sales.slice(0, 5)
 
-    // Top selling products today
     const productSales: Record<string, { name: string; qty: number }> = {}
     todaySales.forEach((sale) => {
       sale.items.forEach((item) => {
@@ -65,125 +60,126 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen pb-20">
-      <Header title="Dashboard" icon="📊" showNotifications />
+    <div className="min-h-screen pb-20 bg-gray-50">
+      <Header title="ภาพรวม" showNotifications />
 
       <div className="p-4 space-y-4">
-        {/* Greeting */}
-        <div className="bg-white border border-gray-100 rounded-xl p-5">
-          <p className="text-gray-500 text-sm">สวัสดี,</p>
-          <h2 className="text-xl font-semibold text-gray-800">{user?.name || 'ผู้ใช้'}</h2>
-          <p className="text-gray-400 text-sm mt-2">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <p className="text-gray-500 text-xs">สวัสดี,</p>
+          <h2 className="text-lg font-semibold text-gray-900">{user?.name || 'ผู้ใช้'}</h2>
+          <p className="text-gray-400 text-xs mt-1">
             {new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
 
-        {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            icon={TrendingUp}
-            value={`฿${todayRevenue.toLocaleString()}`}
-            label="ยอดขายวันนี้"
-            color="green"
-          />
-          <StatCard
-            icon={DollarSign}
-            value={todayProfit ? `฿${todayProfit.profit.toLocaleString()}` : '...'}
-            label={`กำไรวันนี้${todayProfit ? ` (${todayProfit.margin.toFixed(0)}%)` : ''}`}
-            color="blue"
-          />
-          <StatCard
-            icon={ShoppingCart}
-            value={todaySales.length}
-            label="ออเดอร์วันนี้"
-            color="purple"
-          />
-          <StatCard
-            icon={Users}
-            value={customerCount}
-            label="ลูกค้าสมาชิก"
-            color="orange"
-          />
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp size={16} className="text-gray-400" />
+              <span className="text-xs text-gray-500">ยอดขายวันนี้</span>
+            </div>
+            <p className="text-xl font-semibold text-gray-900">{todayRevenue.toLocaleString()} บาท</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign size={16} className="text-gray-400" />
+              <span className="text-xs text-gray-500">กำไรวันนี้</span>
+            </div>
+            <p className="text-xl font-semibold text-gray-900">
+              {todayProfit ? `${todayProfit.profit.toLocaleString()} บาท` : '...'}
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <ShoppingCart size={16} className="text-gray-400" />
+              <span className="text-xs text-gray-500">ออเดอร์วันนี้</span>
+            </div>
+            <p className="text-xl font-semibold text-gray-900">{todaySales.length}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Users size={16} className="text-gray-400" />
+              <span className="text-xs text-gray-500">ลูกค้าสมาชิก</span>
+            </div>
+            <p className="text-xl font-semibold text-gray-900">{customerCount}</p>
+          </div>
         </div>
 
-        {/* Low Stock Alert */}
         {lowStockProducts.length > 0 && (
           <button
             onClick={() => navigate('/products')}
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 flex items-center gap-3"
+            className="w-full bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3"
           >
             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <AlertTriangle className="text-gray-600" size={20} />
+              <AlertTriangle className="text-gray-600" size={18} />
             </div>
             <div className="flex-1 text-left">
-              <p className="font-medium text-gray-800">สินค้าใกล้หมด</p>
-              <p className="text-sm text-gray-500">{lowStockProducts.length} รายการต้องเติมสต็อก</p>
+              <p className="font-medium text-gray-900 text-sm">สินค้าใกล้หมด</p>
+              <p className="text-xs text-gray-500">{lowStockProducts.length} รายการต้องเติมสต็อก</p>
             </div>
-            <ArrowRight className="text-gray-400" size={20} />
+            <ArrowRight className="text-gray-400" size={18} />
           </button>
         )}
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => navigate('/')}
-            className="bg-gray-800 text-white rounded-xl p-4 flex flex-col items-center gap-2"
+            className="bg-gray-900 text-white rounded-xl p-3 flex flex-col items-center gap-1.5"
           >
-            <ShoppingCart size={24} />
-            <span className="font-medium text-sm">เริ่มขาย</span>
+            <ShoppingCart size={20} />
+            <span className="font-medium text-xs">เริ่มขาย</span>
           </button>
           {hasPermission(user?.role, 'stock.receive') && (
             <button
               onClick={() => navigate('/stock-receipt')}
-              className="bg-white border border-gray-200 text-gray-800 rounded-xl p-4 flex flex-col items-center gap-2"
+              className="bg-white border border-gray-200 text-gray-800 rounded-xl p-3 flex flex-col items-center gap-1.5"
             >
-              <Package size={24} />
-              <span className="font-medium text-sm">รับสินค้า</span>
+              <Package size={20} />
+              <span className="font-medium text-xs">รับสินค้า</span>
             </button>
           )}
           {hasPermission(user?.role, 'stock.receive') && (
             <button
               onClick={() => navigate('/daily-stock-count')}
-              className="bg-blue-600 text-white rounded-xl p-4 flex flex-col items-center gap-2"
+              className="bg-white border border-gray-200 text-gray-800 rounded-xl p-3 flex flex-col items-center gap-1.5"
             >
-              <ClipboardCheck size={24} />
-              <span className="font-medium text-sm">ปิดยอดสต๊อก</span>
+              <ClipboardCheck size={20} />
+              <span className="font-medium text-xs">ปิดยอดสต็อก</span>
             </button>
           )}
         </div>
 
-        {/* Report Links */}
         {hasPermission(user?.role, 'reports.view') && (
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-              <BarChart3 size={16} className="text-gray-400" />
+          <div className="bg-white rounded-xl p-4 border border-gray-200">
+            <h3 className="font-medium text-gray-900 text-sm mb-3 flex items-center gap-2">
+              <BarChart3 size={14} className="text-gray-400" />
               รายงาน
             </h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <button
                 onClick={() => navigate('/reports')}
-                className="bg-blue-50 text-blue-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+                className="bg-gray-50 text-gray-700 rounded-lg p-2.5 text-xs font-medium flex flex-col items-center gap-1"
               >
                 <BarChart3 size={16} />
                 ยอดขาย
               </button>
               <button
                 onClick={() => navigate('/profit')}
-                className="bg-green-50 text-green-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+                className="bg-gray-50 text-gray-700 rounded-lg p-2.5 text-xs font-medium flex flex-col items-center gap-1"
               >
                 <DollarSign size={16} />
                 กำไร
               </button>
               <button
                 onClick={() => navigate('/stock-report')}
-                className="bg-purple-50 text-purple-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+                className="bg-gray-50 text-gray-700 rounded-lg p-2.5 text-xs font-medium flex flex-col items-center gap-1"
               >
                 <Package size={16} />
                 สต็อก
               </button>
               <button
                 onClick={() => navigate('/customer-report')}
-                className="bg-orange-50 text-orange-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2"
+                className="bg-gray-50 text-gray-700 rounded-lg p-2.5 text-xs font-medium flex flex-col items-center gap-1"
               >
                 <Users size={16} />
                 ลูกค้า
@@ -192,58 +188,51 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Top Products Today */}
         {topProducts.length > 0 && (
-          <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-gray-800 flex items-center gap-2">
-                <Star className="text-gray-400" size={16} />
-                สินค้าขายดีวันนี้
-              </h3>
-            </div>
+          <div className="bg-white rounded-xl p-4 border border-gray-200">
+            <h3 className="font-medium text-gray-900 text-sm mb-3">สินค้าขายดีวันนี้</h3>
             <div className="space-y-2">
               {topProducts.map(([id, data], idx) => (
                 <div key={id} className="flex items-center gap-3">
-                  <span className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
+                  <span className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-[10px] font-medium text-gray-600">
                     {idx + 1}
                   </span>
-                  <span className="flex-1 text-gray-700">{data.name}</span>
-                  <span className="text-sm font-medium text-gray-600">{data.qty} ชิ้น</span>
+                  <span className="flex-1 text-sm text-gray-700">{data.name}</span>
+                  <span className="text-xs font-medium text-gray-500">{data.qty} ชิ้น</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Recent Sales */}
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <h3 className="font-medium text-gray-800 flex items-center gap-2">
-              <Clock size={16} className="text-gray-400" />
+            <h3 className="font-medium text-gray-900 text-sm flex items-center gap-2">
+              <Clock size={14} className="text-gray-400" />
               การขายล่าสุด
             </h3>
             <button
               onClick={() => navigate('/history')}
-              className="text-sm text-gray-500 font-medium flex items-center gap-1"
+              className="text-xs text-gray-500 font-medium flex items-center gap-1"
             >
-              ดูทั้งหมด <ArrowRight size={14} />
+              ดูทั้งหมด <ArrowRight size={12} />
             </button>
           </div>
           {recentSales.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
+            <div className="p-6 text-center text-gray-400 text-sm">
               ยังไม่มีการขายวันนี้
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-gray-100">
               {recentSales.map((sale) => (
-                <div key={sale.id} className="p-4 flex items-center justify-between">
+                <div key={sale.id} className="p-3 flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-800">฿{sale.total.toLocaleString()}</p>
+                    <p className="font-medium text-gray-900 text-sm">{sale.total.toLocaleString()} บาท</p>
                     <p className="text-xs text-gray-400">{formatTime(sale.created_at)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">{sale.items.length} รายการ</p>
-                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                    <p className="text-xs text-gray-500">{sale.items.length} รายการ</p>
+                    <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                       สำเร็จ
                     </span>
                   </div>

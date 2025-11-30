@@ -27,8 +27,9 @@ const commonBills = [20, 50, 100, 500, 1000]
 
 export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
-  const [payment, setPayment] = useState('')
+  const [payment, setPayment] = useState<string>('')
   const [note, setNote] = useState('')
+  const [isInitialized, setIsInitialized] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -61,8 +62,21 @@ export function PaymentModal({ isOpen, onClose, onSuccess }: Props) {
     if (isOpen) {
       fetchCustomers()
       fetchDiscounts()
+      // ตั้งค่าเริ่มต้นเป็น "พอดี" เมื่อเปิด modal
+      if (!isInitialized) {
+        setIsInitialized(true)
+      }
+    } else {
+      setIsInitialized(false)
     }
   }, [isOpen])
+
+  // ตั้งค่า payment เป็นยอดรวมเมื่อ total เปลี่ยน (ค่าเริ่มต้นพอดี)
+  useEffect(() => {
+    if (isOpen && total > 0) {
+      setPayment(total.toString())
+    }
+  }, [isOpen, total])
 
   const fetchCustomers = async () => {
     const { data } = await supabase

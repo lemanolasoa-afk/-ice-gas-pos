@@ -1,11 +1,14 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Receipt, Calendar, Banknote, Wallet, FileText, ChevronRight } from 'lucide-react'
+import { Receipt, Calendar, Banknote, Wallet, FileText, ChevronRight, Printer } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { Header } from '../components/Header'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorMessage } from '../components/ErrorMessage'
 import { ReceiptModal } from '../components/ReceiptModal'
+import { useToast } from '../components/Toast'
 import { Sale } from '../types'
+import { usePrinter } from '../hooks/usePrinter'
+import { saleToReceiptData } from '../lib/bluetoothPrinter'
 
 const paymentMethodLabels = {
   cash: { label: 'เงินสด', icon: Banknote, color: 'text-gray-600 bg-gray-100' },
@@ -27,10 +30,46 @@ export function HistoryPage() {
   const error = useStore((s) => s.error)
   const clearError = useStore((s) => s.clearError)
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+  const [printingId, setPrintingId] = useState<string | null>(null)
+  
+  // Toast hook for feedback
+  const { showToast } = useToast()
+  
+  // Bluetooth printer hook - AC-3.3: พิมพ์ซ้ำจากประวัติ
+  const { isConnected, isPrinting, print } = usePrinter()
 
   useEffect(() => {
     fetchSales()
   }, [fetchSales])
+
+  /**
+   * Handle quick print from sale card
+   * AC-3.3: มีปุ่มพิมพ์ซ้ำในหน้าประวัติการขาย
+   */
+  const handleQuickPrint = useCallback(async (e: React.MouseEvent, sale: Sale) => {
+    e.stopPropagation() // Prevent opening the modal
+    
+    if (!isConnected) {
+      showToast('error', 'กรุณาเชื่อมต่อเครื่องพิมพ์ก่อน')
+      return
+    }
+    
+    setPrintingId(sale.id)
+    try {
+      const receiptData = saleToReceiptData(sale)
+      const success = await print(receiptData)
+      
+      if (success) {
+        showToast('success', 'พิมพ์ใบเสร็จสำเร็จ')
+      } else {
+        showToast('error', 'พิมพ์ไม่สำเร็จ กรุณาลองใหม่')
+      }
+    } catch {
+      showToast('error', 'เกิดข้อผิดพลาดในการพิมพ์')
+    } finally {
+      setPrintingId(null)
+    }
+  }, [isConnected, print, showToast])
 
   // Memoized calculations
   const { todaySales, todayTotal, groupedSales } = useMemo(() => {
@@ -109,33 +148,62 @@ export function HistoryPage() {
                     {dateSales.map((sale, idx) => {
                       const method = paymentMethodLabels[sale.payment_method || 'cash']
                       const MethodIcon = method.icon
+                      const isCurrentlyPrinting = printingId === sale.id && isPrinting
                       return (
-                        <button
+                        <div
                           key={sale.id}
-                          onClick={() => handleSelectSale(sale)}
                           style={{ animationDelay: `${idx * 30}ms` }}
-                          className="w-full bg-white rounded-lg p-3 border border-gray-100 text-left stagger-item hover:bg-gray-50"
+                          className="bg-white rounded-lg p-3 border border-gray-100 stagger-item"
                         >
-                          <div className="flex items-center gap-3">
-                            {/* Payment Method Icon */}
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${method.color}`}>
-                              <MethodIcon size={18} />
-                            </div>
-                            
-                            {/* Sale Info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <p className="font-medium text-gray-800">฿{sale.total.toLocaleString()}</p>
-                                <p className="text-xs text-gray-400">{formatTime(sale.created_at)}</p>
+                          <button
+                            onClick={() => handleSelectSale(sale)}
+                            className="w-full text-left hover:bg-gray-50 -m-3 p-3 rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              {/* Payment Method Icon */}
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${method.color}`}>
+                                <MethodIcon size={18} />
                               </div>
-                              <p className="text-xs text-gray-500 truncate">
-                                {sale.items.map(i => i.product_name).join(', ')}
-                              </p>
+                              
+                              {/* Sale Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <p className="font-medium text-gray-800">฿{sale.total.toLocaleString()}</p>
+                                  <p className="text-xs text-gray-400">{formatTime(sale.created_at)}</p>
+                                </div>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {sale.items.map(i => i.product_name).join(', ')}
+                                </p>
+                              </div>
+                              
+                              <ChevronRight size={18} className="text-gray-300" />
                             </div>
-                            
-                            <ChevronRight size={18} className="text-gray-300" />
-                          </div>
-                        </button>
+                          </button>
+                          
+                          {/* Quick Print Button - AC-3.3: พิมพ์ซ้ำจากประวัติ */}
+                          {/* Disable ปุ่มพิมพ์ขณะกำลังพิมพ์ - disable all print buttons when any print is in progress */}
+                          {isConnected && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                              <button
+                                onClick={(e) => handleQuickPrint(e, sale)}
+                                disabled={isPrinting}
+                                className="w-full py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isCurrentlyPrinting ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                    กำลังพิมพ์...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Printer size={16} />
+                                    พิมพ์ใบเสร็จ
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )
                     })}
                   </div>

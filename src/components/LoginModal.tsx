@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Lock, Delete, LogIn, Loader2 } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { Lock, Delete, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 
 interface Props {
@@ -10,23 +10,28 @@ export function LoginModal({ onSuccess: _onSuccess }: Props) {
   const [pin, setPin] = useState('')
   const { login, isLoading, error, clearError } = useAuthStore()
 
+  const attemptLogin = useCallback(async (pinCode: string) => {
+    const success = await login(pinCode)
+    if (success) {
+      window.location.reload()
+    }
+  }, [login])
+
   const handleKeyPress = async (key: string) => {
     clearError()
     if (key === 'delete') {
       setPin((prev) => prev.slice(0, -1))
-    } else if (key === 'enter') {
-      if (pin.length >= 4) {
-        const success = await login(pin)
-        if (success) {
-          window.location.reload()
-        }
+    } else if (pin.length < 4) {
+      const newPin = pin + key
+      setPin(newPin)
+      // Auto login when PIN reaches 4 digits
+      if (newPin.length === 4) {
+        attemptLogin(newPin)
       }
-    } else if (pin.length < 6) {
-      setPin((prev) => prev + key)
     }
   }
 
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'delete', '0', 'enter']
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'delete', '0', '']
 
   return (
     <div className="fixed inset-0 bg-gray-50 flex items-center justify-center z-50 p-4">
@@ -63,31 +68,36 @@ export function LoginModal({ onSuccess: _onSuccess }: Props) {
         {/* Keypad */}
         <div className="grid grid-cols-3 gap-2">
           {keys.map((key, idx) => (
-            <button
-              key={key}
-              onClick={() => handleKeyPress(key)}
-              disabled={isLoading}
-              style={{ animationDelay: `${idx * 30}ms` }}
-              className={`h-14 rounded-lg font-semibold text-xl flex items-center justify-center transition-colors stagger-item ${
-                key === 'enter'
-                  ? 'bg-gray-800 text-white hover:bg-gray-700'
-                  : key === 'delete'
+            key === '' ? (
+              <div key="empty" className="h-14" />
+            ) : (
+              <button
+                key={key}
+                onClick={() => handleKeyPress(key)}
+                disabled={isLoading}
+                style={{ animationDelay: `${idx * 30}ms` }}
+                className={`h-14 rounded-lg font-semibold text-xl flex items-center justify-center transition-colors stagger-item ${
+                  key === 'delete'
                     ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isLoading && key === 'enter' ? (
-                <Loader2 size={22} className="animate-spin" />
-              ) : key === 'delete' ? (
-                <Delete size={22} />
-              ) : key === 'enter' ? (
-                <LogIn size={22} />
-              ) : (
-                key
-              )}
-            </button>
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {key === 'delete' ? (
+                  <Delete size={22} />
+                ) : (
+                  key
+                )}
+              </button>
+            )
           ))}
         </div>
+        
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="flex justify-center mt-4">
+            <Loader2 size={24} className="animate-spin text-gray-600" />
+          </div>
+        )}
 
         <div className="mt-6 pt-4 border-t border-gray-100">
           <p className="text-center text-gray-400 text-xs mb-2">ทดสอบระบบ</p>

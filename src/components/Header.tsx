@@ -1,75 +1,80 @@
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, Bell, Wifi, WifiOff, Crown, ShoppingCart } from 'lucide-react'
+import { ChevronLeft, Bell, Wifi, WifiOff, User, Printer } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useAuthStore } from '../store/authStore'
+import { usePrinter } from '../hooks/usePrinter'
 
 interface Props {
   title: string
-  icon?: string
   showBack?: boolean
   showNotifications?: boolean
 }
 
-export function Header({ title, icon, showBack = false, showNotifications = false }: Props) {
+export function Header({ title, showBack = false, showNotifications = false }: Props) {
   const navigate = useNavigate()
   const isOnline = useStore((s) => s.isOnline)
   const products = useStore((s) => s.products)
   const { user } = useAuthStore()
+  const { isSupported: isPrinterSupported, isConnected: isPrinterConnected } = usePrinter()
 
   const lowStockCount = products.filter((p) => p.stock <= p.low_stock_threshold).length
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10 shadow-sm">
+    <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {showBack && (
             <button
               onClick={() => navigate(-1)}
-              className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-700"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
             >
-              <ChevronLeft size={24} />
+              <ChevronLeft size={22} />
             </button>
           )}
           <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              {icon && <span className="text-2xl">{icon}</span>}
-              {title}
-            </h1>
+            <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
             {user && (
-              <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
-                {user.role === 'admin' ? (
-                  <Crown size={12} className="text-amber-500" />
-                ) : (
-                  <ShoppingCart size={12} />
-                )}
-                <span className="font-medium">{user.name}</span>
-                <span className="text-gray-300">•</span>
-                <span className={user.role === 'admin' ? 'text-amber-600' : 'text-gray-500'}>
-                  {user.role === 'admin' ? 'ผู้ดูแล' : 'พนักงาน'}
-                </span>
+              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                <User size={10} />
+                <span>{user.name}</span>
+                <span className="text-gray-300">|</span>
+                <span>{user.role === 'admin' ? 'ผู้ดูแลระบบ' : 'พนักงาน'}</span>
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Connection Status */}
+        <div className="flex items-center gap-2">
+          {isPrinterSupported && (
+            <button
+              onClick={() => navigate('/settings')}
+              className={`p-2 rounded-lg transition-colors ${
+                isPrinterConnected 
+                  ? 'bg-blue-50 text-blue-600' 
+                  : 'bg-gray-50 text-gray-400'
+              }`}
+              title={isPrinterConnected ? 'เครื่องพิมพ์เชื่อมต่อแล้ว' : 'ไม่ได้เชื่อมต่อเครื่องพิมพ์'}
+            >
+              <Printer size={18} />
+            </button>
+          )}
+
           <div
-            className={`p-2.5 rounded-xl transition-colors ${
-              isOnline ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500 animate-pulse'
+            className={`p-2 rounded-lg ${
+              isOnline ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'
             }`}
+            title={isOnline ? 'ออนไลน์' : 'ออฟไลน์'}
           >
-            {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
+            {isOnline ? <Wifi size={18} /> : <WifiOff size={18} />}
           </div>
 
-          {/* Notifications */}
           {showNotifications && lowStockCount > 0 && (
             <button
               onClick={() => navigate('/products')}
-              className="relative p-2.5 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors text-amber-600"
+              className="relative p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
             >
-              <Bell size={20} />
-              <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs font-bold flex items-center justify-center shadow-sm">
+              <Bell size={18} />
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] font-medium flex items-center justify-center">
                 {lowStockCount}
               </span>
             </button>

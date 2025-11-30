@@ -1,6 +1,9 @@
-import { useRef, useState } from 'react'
-import { X, Printer, Download, Store, RefreshCw, Banknote, Star, User, Share2, Image, FileText } from 'lucide-react'
+import { useRef, useState, useEffect } from 'react'
+import { X, Printer, Download, Store, RefreshCw, Banknote, Star, User, Share2, Image, FileText, Bluetooth, AlertCircle } from 'lucide-react'
 import { Sale } from '../types'
+import { usePrinter } from '../hooks/usePrinter'
+import { saleToReceiptData } from '../lib/bluetoothPrinter'
+import { useToast } from './Toast'
 
 interface Props {
   sale: Sale
@@ -11,6 +14,13 @@ export function ReceiptModal({ sale, onClose }: Props) {
   const receiptRef = useRef<HTMLDivElement>(null)
   const [showShareMenu, setShowShareMenu] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [bluetoothPrintError, setBluetoothPrintError] = useState<string | null>(null)
+  
+  // Bluetooth printer hook - AC-3.2
+  const { isConnected, isPrinting, print, error: printerError } = usePrinter()
+  
+  // Toast for success/error feedback
+  const { showToast } = useToast()
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('th-TH', {
@@ -436,6 +446,59 @@ ${sale.items.map(item => `• ${item.product_name} x${item.quantity} = ฿${item
     a.click()
   }
 
+  /**
+   * Handle Bluetooth thermal printer printing
+   * AC-3.2: มีปุ่มพิมพ์ใบเสร็จใน ReceiptModal
+   * AC-3.4: แสดง loading ขณะพิมพ์
+   * AC-3.5: แสดง error ถ้าพิมพ์ไม่สำเร็จ พร้อมปุ่มลองใหม่
+   */
+  const handleBluetoothPrint = async () => {
+    // Clear previous error before attempting print
+    setBluetoothPrintError(null)
+    
+    try {
+      const receiptData = saleToReceiptData(sale)
+      const success = await print(receiptData)
+      
+      if (success) {
+        // Show success toast when printing succeeds
+        showToast('success', 'พิมพ์ใบเสร็จสำเร็จ')
+      } else {
+        // Use a small delay to ensure the hook's error state is updated
+        setTimeout(() => {
+          setBluetoothPrintError(printerError || 'พิมพ์ไม่สำเร็จ กรุณาลองใหม่')
+        }, 100)
+      }
+    } catch (err) {
+      // Handle unexpected errors
+      const errorMessage = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการพิมพ์'
+      setBluetoothPrintError(errorMessage)
+    }
+  }
+
+  /**
+   * Smart print function with fallback
+   * Tries Bluetooth first if connected, otherwise falls back to window.print()
+   * Fallback: ใช้ window.print() ถ้าไม่มี Bluetooth
+   */
+  const handleSmartPrint = async () => {
+    if (isConnected) {
+      // Try Bluetooth printing first
+      await handleBluetoothPrint()
+    } else {
+      // Fallback to browser print when Bluetooth is not available
+      handlePrint()
+    }
+  }
+
+  // Sync error from printer hook when it changes
+  // This ensures we display the latest error message from the printer
+  useEffect(() => {
+    if (printerError && !bluetoothPrintError) {
+      setBluetoothPrintError(printerError)
+    }
+  }, [printerError, bluetoothPrintError])
+
   // Share via native share API (text)
   const handleShareText = async () => {
     setShowShareMenu(false)
@@ -591,6 +654,66 @@ ${sale.items.map(item => `• ${item.product_name} x${item.quantity} = ฿${item
 
         {/* Actions */}
         <div className="p-4 border-t border-gray-100 space-y-2">
+          {/* Bluetooth Print Button - AC-3.2: แสดงเมื่อเชื่อมต่อเครื่องพิมพ์แล้ว */}
+          {isConnected && (
+            <div className="space-y-2">
+              <button
+                onClick={handleBluetoothPrint}
+                disabled={isPrinting}
+                className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPrinting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    กำลังพิมพ์...
+                  </>
+                ) : (
+                  <>
+                    <Bluetooth size={18} />
+                    พิมพ์ใบเสร็จ (Bluetooth)
+                  </>
+                )}
+              </button>
+              
+              {/* Error message - AC-3.5: แสดง error ถ้าพิมพ์ไม่สำเร็จ พร้อมปุ่มลองใหม่ */}
+              {bluetoothPrintError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-red-700 font-medium">พิมพ์ไม่สำเร็จ</p>
+                      <p className="text-sm text-red-600 mt-1">{bluetoothPrintError}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        setBluetoothPrintError(null)
+                        handleBluetoothPrint()
+                      }}
+                      disabled={isPrinting}
+                      className="flex-1 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      <RefreshCw size={14} />
+                      ลองใหม่
+                    </button>
+                    {/* Fallback button - ใช้ window.print() แทน */}
+                    <button
+                      onClick={() => {
+                        setBluetoothPrintError(null)
+                        handlePrint()
+                      }}
+                      className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 flex items-center justify-center gap-1"
+                    >
+                      <Printer size={14} />
+                      พิมพ์ปกติ
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="flex gap-2">
             <button
               onClick={handleDownloadText}
@@ -602,6 +725,7 @@ ${sale.items.map(item => `• ${item.product_name} x${item.quantity} = ฿${item
             <button
               onClick={handlePrint}
               className="flex-1 py-3 bg-gray-800 text-white rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-gray-700"
+              title={isConnected ? 'พิมพ์ผ่านเบราว์เซอร์ (Fallback)' : 'พิมพ์ใบเสร็จ'}
             >
               <Printer size={18} />
               พิมพ์

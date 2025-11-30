@@ -9,6 +9,7 @@ export interface Product {
   barcode?: string | null
   low_stock_threshold: number
   image?: string | null
+  is_active?: boolean        // Soft delete flag
   created_at?: string
   updated_at?: string
   // Gas cylinder specific fields

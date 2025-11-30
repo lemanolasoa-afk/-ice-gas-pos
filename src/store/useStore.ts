@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { CartItem, Product, Sale, SaleItem, QueuedOperation, GasSaleType } from '../types'
 import { supabase } from '../lib/supabase'
 import { NotificationTriggers } from '../lib/notificationTriggers'
+import { printer, saleToReceiptData } from '../lib/bluetoothPrinter'
 
 // Helper to get current user from auth store
 const getCurrentUserId = (): string | null => {
@@ -11,6 +12,16 @@ const getCurrentUserId = (): string | null => {
     return authState?.state?.user?.id || null
   } catch {
     return null
+  }
+}
+
+// Helper to get current user's name from auth store
+const getCurrentUserName = (): string => {
+  try {
+    const authState = JSON.parse(localStorage.getItem('ice-gas-pos-auth') || '{}')
+    return authState?.state?.user?.name || 'พนักงาน'
+  } catch {
+    return 'พนักงาน'
   }
 }
 
@@ -84,6 +95,7 @@ export const useStore = create<POSStore>()(
           const { data, error } = await supabase
             .from('products')
             .select('*')
+            .eq('is_active', true)  // ดึงเฉพาะสินค้าที่ active
             .order('category')
           
           if (error) throw error
@@ -157,14 +169,19 @@ export const useStore = create<POSStore>()(
         const { isOnline } = get()
         if (!isOnline) {
           get().queueOperation({ type: 'product_delete', payload: { id } })
+          // Soft delete locally
+          set((state) => ({
+            products: state.products.filter((p) => p.id !== id)
+          }))
           return
         }
 
         set({ isLoading: true, error: null })
         try {
+          // Soft delete: เปลี่ยน is_active เป็น false แทนการลบจริง
           const { error } = await supabase
             .from('products')
-            .delete()
+            .update({ is_active: false, updated_at: new Date().toISOString() })
             .eq('id', id)
           
           if (error) throw error
@@ -411,6 +428,19 @@ export const useStore = create<POSStore>()(
             console.error('Notification error:', notifError)
           }
 
+          // Auto-print receipt if enabled (AC-3.1)
+          try {
+            const printerSettings = printer.getSettings()
+            if (printerSettings.autoPrint && printer.isConnected()) {
+              // Use centralized saleToReceiptData function with current staff name
+              const receiptData = saleToReceiptData(completedSale, getCurrentUserName())
+              await printer.printReceipt(receiptData)
+            }
+          } catch (printError) {
+            // Don't fail the sale if printing fails, just log the error
+            console.error('Auto-print error:', printError)
+          }
+
           return completedSale
         } catch (err) {
           set({ error: (err as Error).message, isLoading: false })
@@ -538,7 +568,8 @@ export const useStore = create<POSStore>()(
               }
               case 'product_delete': {
                 const { id } = operation.payload as { id: string }
-                await supabase.from('products').delete().eq('id', id)
+                // Soft delete: เปลี่ยน is_active เป็น false แทนการลบจริง
+                await supabase.from('products').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', id)
                 break
               }
             }

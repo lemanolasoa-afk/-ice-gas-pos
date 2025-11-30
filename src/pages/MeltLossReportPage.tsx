@@ -1,24 +1,28 @@
-import { useState, useEffect } from 'react'
-import { ArrowLeft, Droplets, TrendingDown, AlertTriangle, Calendar } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { ArrowLeft, Droplets, TrendingDown, AlertTriangle, Calendar, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useMeltLoss } from '../hooks/useMeltLoss'
 import { MeltLossChart } from '../components/stock/MeltLossChart'
 import { StatCard } from '../components/StatCard'
-import { LoadingSpinner } from '../components/LoadingSpinner'
+import { MeltLossReportSkeleton } from '../components/Skeleton'
+import { ErrorMessage } from '../components/ErrorMessage'
 import { DailyStockCount, MeltLossReportSummary, MeltLossByProduct } from '../types'
 
 type DateRange = 'today' | '7days' | '30days' | 'custom'
 
 export function MeltLossReportPage() {
   const navigate = useNavigate()
-  const { loading, getMeltLossReport, getMeltLossSummary, getMeltLossByProduct } = useMeltLoss()
+  const { error, clearError, getMeltLossReport, getMeltLossSummary, getMeltLossByProduct } = useMeltLoss()
   
   const [dateRange, setDateRange] = useState<DateRange>('7days')
   const [reportData, setReportData] = useState<DailyStockCount[]>([])
   const [summary, setSummary] = useState<MeltLossReportSummary | null>(null)
   const [byProduct, setByProduct] = useState<MeltLossByProduct[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const getDateRange = (range: DateRange): { start: string; end: string } => {
+  const getDateRange = useCallback((range: DateRange): { start: string; end: string } => {
     const today = new Date()
     const end = today.toISOString().split('T')[0]
     
@@ -38,10 +42,20 @@ export function MeltLossReportPage() {
     }
     
     return { start: start.toISOString().split('T')[0], end }
-  }
+  }, [])
 
-  useEffect(() => {
-    async function loadData() {
+  const loadData = useCallback(async () => {
+    // Show skeleton on initial load, subtle indicator on refresh
+    if (summary === null) {
+      setIsLoading(true)
+    } else {
+      setIsRefreshing(true)
+    }
+    
+    setLoadError(null)
+    clearError()
+    
+    try {
       const { start, end } = getDateRange(dateRange)
       
       const [data, summaryData, productData] = await Promise.all([
@@ -50,12 +64,27 @@ export function MeltLossReportPage() {
         getMeltLossByProduct(start, end)
       ])
       
-      setReportData(data)
-      setSummary(summaryData)
-      setByProduct(productData)
+      // Check if we got data or if there was an error
+      if (error) {
+        setLoadError(error)
+      } else {
+        setReportData(data)
+        setSummary(summaryData)
+        setByProduct(productData)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
+      setLoadError(message)
+      console.error('Failed to load melt loss report:', err)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
     }
+  }, [dateRange, summary, clearError, getDateRange, getMeltLossReport, getMeltLossSummary, getMeltLossByProduct, error])
+
+  useEffect(() => {
     loadData()
-  }, [dateRange, getMeltLossReport, getMeltLossSummary, getMeltLossByProduct])
+  }, [dateRange]) // Only reload when dateRange changes, not on every loadData change
 
   const dateRangeOptions: { value: DateRange; label: string }[] = [
     { value: 'today', label: 'วันนี้' },
@@ -90,12 +119,16 @@ export function MeltLossReportPage() {
             <button
               key={option.value}
               onClick={() => setDateRange(option.value)}
-              className={`flex-1 py-2 px-4 rounded-xl font-medium transition-colors ${
+              disabled={isRefreshing}
+              className={`flex-1 py-2 px-4 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${
                 dateRange === option.value
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-              }`}
+              } ${isRefreshing ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
+              {isRefreshing && dateRange === option.value && (
+                <Loader2 size={14} className="animate-spin" />
+              )}
               {option.label}
             </button>
           ))}
@@ -103,11 +136,15 @@ export function MeltLossReportPage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-lg mx-auto px-4">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <LoadingSpinner />
-          </div>
+      <div className={`max-w-lg mx-auto px-4 ${isRefreshing ? 'opacity-60 pointer-events-none' : ''} transition-opacity`}>
+        {isLoading ? (
+          <MeltLossReportSkeleton />
+        ) : loadError || error ? (
+          <ErrorMessage 
+            message={loadError || error || 'เกิดข้อผิดพลาด'}
+            onRetry={loadData}
+            variant="inline"
+          />
         ) : (
           <>
             {/* Summary Cards */}

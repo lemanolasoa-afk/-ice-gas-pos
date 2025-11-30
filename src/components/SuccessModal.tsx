@@ -47,17 +47,15 @@ export function SuccessModal({ isOpen, change, onClose }: Props) {
           ทำรายการเรียบร้อยแล้ว
         </p>
 
-        {change > 0 && (
-          <div
-            className={`bg-gray-50 rounded-xl p-5 mb-6 transition-all duration-300 ${showContent ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-4 opacity-0 scale-95'}`}
-            style={{ transitionDelay: '250ms' }}
-          >
-            <p className="text-sm text-gray-500 mb-1">เงินทอน</p>
-            <p className="text-3xl font-semibold text-gray-800">
-              ฿{change.toLocaleString()}
-            </p>
-          </div>
-        )}
+        <div
+          className={`bg-gray-50 rounded-xl p-4 mb-6 transition-all duration-300 ${showContent ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-4 opacity-0 scale-95'}`}
+          style={{ transitionDelay: '250ms' }}
+        >
+          <p className="text-sm text-gray-500 mb-1">เงินทอน</p>
+          <p className={`text-2xl font-semibold ${change > 0 ? 'text-gray-900' : 'text-gray-500'}`}>
+            {change > 0 ? `${change.toLocaleString()} บาท` : 'พอดี'}
+          </p>
+        </div>
 
         <button
           onClick={onClose}

@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import { StockReceipt, Product } from '../types'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { useToast } from '../components/Toast'
+import { SearchableSelect } from '../components/SearchableSelect'
 
 type ReceiptType = 'normal' | 'gas_refill'
 
@@ -291,6 +292,12 @@ function ReceiptForm({
 
   const selectedProduct = products.find((p) => p.id === productId)
 
+  const productOptions = products.map((p) => ({
+    value: p.id,
+    label: p.name,
+    subLabel: `สต็อก: ${p.stock} ${p.unit}`,
+  }))
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
       <div className="bg-white w-full sm:w-96 sm:rounded-2xl rounded-t-2xl p-6">
@@ -298,19 +305,12 @@ function ReceiptForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">สินค้า</label>
-            <select
+            <SearchableSelect
+              options={productOptions}
               value={productId}
-              onChange={(e) => setProductId(e.target.value)}
-              className="w-full px-4 py-3 border rounded-xl"
-              required
-            >
-              <option value="">เลือกสินค้า</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} (สต็อก: {p.stock})
-                </option>
-              ))}
-            </select>
+              onChange={setProductId}
+              placeholder="พิมพ์ค้นหาหรือเลือกสินค้า..."
+            />
           </div>
 
           {selectedProduct && (
@@ -391,6 +391,11 @@ function GasRefillForm({
   const [costPerUnit, setCostPerUnit] = useState('')
   const [note, setNote] = useState('')
 
+  const handleProductChange = (value: string) => {
+    setProductId(value)
+    setQuantity('')
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!productId || !quantity) return
@@ -405,6 +410,14 @@ function GasRefillForm({
   const selectedProduct = products.find((p) => p.id === productId)
   const maxQuantity = selectedProduct?.empty_stock || 0
 
+  const gasOptions = products
+    .filter((p) => (p.empty_stock || 0) > 0)
+    .map((p) => ({
+      value: p.id,
+      label: p.name,
+      subLabel: `ถังเปล่า: ${p.empty_stock || 0} ถัง`,
+    }))
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
       <div className="bg-white w-full sm:w-96 sm:rounded-2xl rounded-t-2xl p-6">
@@ -415,19 +428,12 @@ function GasRefillForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">เลือกถังแก๊ส</label>
-            <select
+            <SearchableSelect
+              options={gasOptions}
               value={productId}
-              onChange={(e) => { setProductId(e.target.value); setQuantity('') }}
-              className="w-full px-4 py-3 border rounded-xl"
-              required
-            >
-              <option value="">เลือกถังแก๊ส</option>
-              {products.filter(p => (p.empty_stock || 0) > 0).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} (ถังเปล่า: {p.empty_stock || 0})
-                </option>
-              ))}
-            </select>
+              onChange={handleProductChange}
+              placeholder="พิมพ์ค้นหาหรือเลือกถังแก๊ส..."
+            />
           </div>
 
           {selectedProduct && (
