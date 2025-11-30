@@ -522,91 +522,88 @@ ${sale.items.map(item => `• ${item.product_name} x${item.quantity} = ฿${item
     }
   }
 
+  const paymentMethodText = {
+    cash: 'เงินสด',
+    transfer: 'โอนเงิน', 
+    credit: 'วางบิล'
+  }[sale.payment_method || 'cash']
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-sm max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800">ใบเสร็จ</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X size={20} />
+      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] flex flex-col shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-bold text-gray-800">ใบเสร็จ</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+            <X size={20} className="text-gray-500" />
           </button>
         </div>
 
-        {/* Receipt Content - Scrollable */}
-        <div ref={receiptRef} className="p-6 overflow-y-auto flex-1">
-          <div className="header text-center mb-4">
-            <Store className="mx-auto text-gray-600 mb-2" size={28} />
-            <h1 className="text-base font-semibold text-gray-800">ร้านน้ำแข็ง แก๊ส น้ำดื่ม</h1>
-            <p className="text-sm text-gray-500">ใบเสร็จ #{sale.id.slice(-6)}</p>
-            <p className="text-xs text-gray-400">{formatDate(sale.created_at)}</p>
+        {/* Receipt Content */}
+        <div ref={receiptRef} className="p-5 overflow-y-auto flex-1">
+          {/* Store Info */}
+          <div className="text-center mb-5">
+            <p className="font-bold text-gray-800">ร้านน้ำแข็ง แก๊ส น้ำดื่ม</p>
+            <p className="text-sm text-gray-500">#{sale.id.slice(-6)}</p>
+            <p className="text-xs text-gray-400 mt-1">{formatDate(sale.created_at)}</p>
           </div>
 
           <div className="border-t border-dashed border-gray-200 my-4" />
 
-          <div className="space-y-2">
+          {/* Items */}
+          <div className="space-y-3 mb-4">
             {sale.items.map((item, idx) => (
-              <div key={idx} className="text-sm">
+              <div key={idx}>
                 <div className="flex justify-between">
-                  <span className="flex-1 text-gray-700">
-                    {item.product_name} x{item.quantity}
-                  </span>
-                  <span className="text-gray-700">฿{item.subtotal}</span>
+                  <span className="text-gray-800">{item.product_name}</span>
+                  <span className="font-medium">฿{item.subtotal?.toLocaleString()}</span>
                 </div>
-                {/* Gas sale type indicator */}
-                {item.gas_sale_type && (
-                  <div className="flex items-center gap-1 mt-0.5">
-                    {item.gas_sale_type === 'exchange' && (
-                      <span className="text-xs text-green-600 flex items-center gap-1">
-                        <RefreshCw size={10} />
-                        แลกถัง
-                      </span>
-                    )}
-                    {item.gas_sale_type === 'deposit' && (
-                      <span className="text-xs text-orange-600 flex items-center gap-1">
-                        <Banknote size={10} />
-                        มัดจำ +฿{item.deposit_amount || 0}
-                      </span>
-                    )}
-                    {item.gas_sale_type === 'outright' && (
-                      <span className="text-xs text-purple-600 flex items-center gap-1">
-                        ซื้อขาด
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="flex justify-between text-sm text-gray-400">
+                  <span>{item.quantity} x ฿{item.price.toLocaleString()}</span>
+                  {item.gas_sale_type && (
+                    <span className={
+                      item.gas_sale_type === 'exchange' ? 'text-green-600' :
+                      item.gas_sale_type === 'deposit' ? 'text-amber-600' : 'text-purple-600'
+                    }>
+                      {item.gas_sale_type === 'exchange' && 'แลกถัง'}
+                      {item.gas_sale_type === 'deposit' && `ค้างถัง +฿${item.deposit_amount}`}
+                      {item.gas_sale_type === 'outright' && 'ซื้อขาด'}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
 
           <div className="border-t border-dashed border-gray-200 my-4" />
 
-          <div className="space-y-1">
-            {/* Calculate and show deposit total for gas items */}
+          {/* Summary */}
+          <div className="space-y-2 mb-4">
             {totalDeposit > 0 && (
-              <div className="flex justify-between text-sm text-orange-600">
+              <div className="flex justify-between text-sm text-amber-600">
                 <span>ค่ามัดจำถัง</span>
-                <span>+฿{totalDeposit}</span>
+                <span>+฿{totalDeposit.toLocaleString()}</span>
               </div>
             )}
             {sale.discount_amount && sale.discount_amount > 0 && (
               <div className="flex justify-between text-sm text-green-600">
-                <span>{sale.discount_name ? `ส่วนลด (${sale.discount_name})` : 'ส่วนลด'}</span>
-                <span>-฿{sale.discount_amount}</span>
+                <span>{sale.discount_name || 'ส่วนลด'}</span>
+                <span>-฿{sale.discount_amount.toLocaleString()}</span>
               </div>
             )}
-            {/* Points used as discount */}
             {sale.points_used && sale.points_used > 0 && (
               <div className="flex justify-between text-sm text-yellow-600">
-                <span className="flex items-center gap-1">
-                  <Star size={12} />
-                  ใช้แต้ม ({sale.points_used} แต้ม)
-                </span>
-                <span>-฿{sale.points_used}</span>
+                <span>ใช้แต้ม ({sale.points_used})</span>
+                <span>-฿{sale.points_used.toLocaleString()}</span>
               </div>
             )}
-            <div className="flex justify-between font-semibold text-base pt-2 border-t border-gray-200">
-              <span className="text-gray-800">รวมทั้งสิ้น</span>
-              <span className="text-gray-800">฿{(sale.total + totalDeposit).toLocaleString()}</span>
+          </div>
+
+          {/* Total */}
+          <div className="bg-gray-50 rounded-xl p-4 mb-4">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-gray-600">รวมทั้งสิ้น</span>
+              <span className="text-2xl font-bold">฿{(sale.total + totalDeposit).toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-sm text-gray-500">
               <span>รับเงิน</span>
@@ -614,42 +611,32 @@ ${sale.items.map(item => `• ${item.product_name} x${item.quantity} = ฿${item
             </div>
             <div className="flex justify-between text-sm text-gray-500">
               <span>ทอน</span>
-              <span>฿{sale.change.toLocaleString()}</span>
+              <span className="text-green-600 font-medium">฿{sale.change.toLocaleString()}</span>
             </div>
-            {/* Payment method */}
-            <div className="flex justify-between text-xs text-gray-400 pt-1">
+            <div className="flex justify-between text-sm text-gray-400 mt-2 pt-2 border-t border-gray-200">
               <span>ชำระโดย</span>
-              <span>
-                {sale.payment_method === 'cash' && 'เงินสด'}
-                {sale.payment_method === 'transfer' && 'โอนเงิน'}
-                {sale.payment_method === 'credit' && 'วางบิล'}
-                {!sale.payment_method && 'เงินสด'}
-              </span>
+              <span>{paymentMethodText}</span>
             </div>
           </div>
 
-          {/* Customer Info Section */}
+          {/* Customer */}
           {sale.customer_name && (
-            <>
-              <div className="border-t border-dashed border-gray-200 my-4" />
-              <div className="bg-gray-50 rounded-lg p-3 space-y-1">
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <User size={14} />
-                  <span className="font-medium">{sale.customer_name}</span>
-                </div>
-                {sale.points_earned && sale.points_earned > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <Star size={14} />
-                    <span>ได้รับ +{sale.points_earned} แต้ม</span>
-                  </div>
-                )}
+            <div className="bg-blue-50 rounded-xl p-3 mb-4">
+              <div className="flex items-center gap-2">
+                <User size={16} className="text-blue-500" />
+                <span className="font-medium text-gray-800">{sale.customer_name}</span>
               </div>
-            </>
+              {sale.points_earned && sale.points_earned > 0 && (
+                <p className="text-sm text-green-600 mt-1 ml-6">+{sale.points_earned} แต้ม</p>
+              )}
+            </div>
           )}
 
-          <div className="border-t border-dashed border-gray-200 my-4" />
-
-          <p className="footer text-center text-sm text-gray-400">ขอบคุณที่ใช้บริการ</p>
+          {/* Footer */}
+          <div className="text-center py-3">
+            <p className="text-gray-400 text-sm">🙏 ขอบคุณที่ใช้บริการ</p>
+            <p className="text-gray-300 text-xs mt-1">Thank you for your purchase</p>
+          </div>
         </div>
 
         {/* Actions */}

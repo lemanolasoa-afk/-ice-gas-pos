@@ -117,47 +117,83 @@ function DepositModal({
   onClose: () => void
   onSelect: (type: GasSaleType) => void
 }) {
+  const outrightPrice = product.outright_price || (product.price + depositAmount + 500)
+  
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-full max-w-sm p-5 animate-scale-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">{product.name}</h3>
+          <h3 className="font-bold text-gray-900 text-lg">{product.name}</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
             <X size={18} className="text-gray-500" />
           </button>
         </div>
 
-        <p className="text-sm text-gray-600 mb-4">เลือกประเภทการขาย</p>
+        <p className="text-sm text-gray-500 mb-4">ลูกค้าต้องการแบบไหน?</p>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
+          {/* แลกถัง */}
           <button
             onClick={() => onSelect('exchange')}
-            className="w-full p-4 border border-gray-200 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors"
+            className="w-full p-4 border-2 border-green-200 bg-green-50 rounded-xl hover:border-green-400 transition-colors touch-feedback"
           >
             <div className="flex items-center gap-3">
-              <RefreshCw className="text-gray-600" size={20} />
-              <div className="flex-1 text-left">
-                <p className="font-medium text-gray-900">แลกถัง</p>
-                <p className="text-xs text-gray-500">มีถังเปล่ามาแลก</p>
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                <RefreshCw className="text-white" size={24} />
               </div>
-              <p className="font-semibold text-gray-900">{product.price.toLocaleString()} บาท</p>
+              <div className="flex-1 text-left">
+                <p className="font-bold text-gray-900">แลกถัง</p>
+                <p className="text-xs text-green-600">🔄 ลูกค้ามีถังเปล่ามาแลก</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-green-600 text-lg">{product.price.toLocaleString()}</p>
+                <p className="text-xs text-gray-400">บาท</p>
+              </div>
             </div>
           </button>
 
+          {/* ค้างถัง (มัดจำ) */}
           <button
             onClick={() => onSelect('deposit')}
-            className="w-full p-4 border border-gray-200 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-colors"
+            className="w-full p-4 border-2 border-amber-200 bg-amber-50 rounded-xl hover:border-amber-400 transition-colors touch-feedback"
           >
             <div className="flex items-center gap-3">
-              <Banknote className="text-gray-600" size={20} />
-              <div className="flex-1 text-left">
-                <p className="font-medium text-gray-900">ซื้อใหม่ + มัดจำ</p>
-                <p className="text-xs text-gray-500">ไม่มีถังมาแลก</p>
+              <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center">
+                <Package className="text-white" size={24} />
               </div>
-              <p className="font-semibold text-gray-900">{(product.price + depositAmount).toLocaleString()} บาท</p>
+              <div className="flex-1 text-left">
+                <p className="font-bold text-gray-900">ค้างถัง</p>
+                <p className="text-xs text-amber-600">📦 ยืมถังไป คืนทีหลัง (มัดจำ ฿{depositAmount.toLocaleString()})</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-amber-600 text-lg">{(product.price + depositAmount).toLocaleString()}</p>
+                <p className="text-xs text-gray-400">บาท</p>
+              </div>
+            </div>
+          </button>
+
+          {/* ซื้อขาด */}
+          <button
+            onClick={() => onSelect('outright')}
+            className="w-full p-4 border-2 border-purple-200 bg-purple-50 rounded-xl hover:border-purple-400 transition-colors touch-feedback"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
+                <Banknote className="text-white" size={24} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-bold text-gray-900">ซื้อขาด</p>
+                <p className="text-xs text-purple-600">💰 ซื้อถังไปเลย ไม่ต้องคืน</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-purple-600 text-lg">{outrightPrice.toLocaleString()}</p>
+                <p className="text-xs text-gray-400">บาท</p>
+              </div>
             </div>
           </button>
         </div>
+
+        <p className="text-xs text-gray-400 text-center mt-4">กดเลือกประเภทการขาย</p>
       </div>
     </div>
   )

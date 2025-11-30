@@ -99,6 +99,7 @@ export const useStore = create<POSStore>()(
             .order('category')
           
           if (error) throw error
+          console.log('Fetched products:', data?.map(p => ({ id: p.id, name: p.name, image: p.image })))
           set({ products: data || [], isLoading: false })
         } catch (err) {
           set({ error: (err as Error).message, isLoading: false })
